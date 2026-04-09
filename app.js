@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (localCreditos) {
     state.creditos = JSON.parse(localCreditos);
   }
-  
+
   if (state.periods.length > 0 || state.usinas.length > 0) {
     updateDashboardUI();
     updateDataEntryUI();
@@ -228,10 +228,10 @@ function setupLogoUpload() {
       reader.onload = (event) => {
         const result = event.target.result;
         companyLogo.src = result;
-        
+
         // Parse and save to localStorage
         localStorage.setItem('coenergy_custom_logo', result);
-        
+
         // Reset file input for clean UX
         logoUpload.value = '';
       };
@@ -359,7 +359,7 @@ function setupLoteEntry() {
 
   btnSave.addEventListener('click', async () => {
     if (window.loteParsedData.length === 0) return;
-    
+
     const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const tempState = [...state.periods];
     const timestamp = Date.now();
@@ -377,7 +377,7 @@ function setupLoteEntry() {
         monthIdx = parseInt(parts[1]) - 1;
         record.dateInclusionFormatted = record.dateInclusion;
       }
-      
+
       const month = monthNames[monthIdx];
       const pName = `${month} de ${year}`;
       const pId = `p-${year}-${monthIdx}`;
@@ -411,22 +411,22 @@ function setupLoteEntry() {
     if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
       btnSave.disabled = true;
       document.getElementById('btn-save-lote-text').textContent = "Salvando...";
-      
+
       const payload = {
         action: 'add_lote',
         clients: window.loteParsedData
       };
-      
+
       await postToGoogleSheets(payload);
       await fetchGoogleSheetsData(false);
-      
+
       btnSave.disabled = false;
       document.getElementById('btn-save-lote-text').textContent = "Salvar Lote";
     }
 
     successMsg.style.display = 'block';
     setTimeout(() => {
-        btnClear.click();
+      btnClear.click();
     }, 3000);
   });
 
@@ -441,7 +441,7 @@ function setupLoteEntry() {
         const dparts = displayDate.split('-');
         if (dparts.length === 3) displayDate = `${dparts[2]}/${dparts[1]}/${dparts[0]}`;
       }
-      
+
       let badgeClass = 'ativos';
       if (record.status === 'Em espera') badgeClass = 'espera';
       if (record.status === 'Saíram') badgeClass = 'sairam';
@@ -550,12 +550,12 @@ function setupForms() {
     let previousInadimplente = false;
 
     if (isEditing && window.editingPeriodId) {
-       const oldPeriodIdx = tempState.findIndex(p => p.id === window.editingPeriodId);
-       if (oldPeriodIdx !== -1) {
-          const oldRec = tempState[oldPeriodIdx].records.find(r => r.id === finalRecordId);
-          if (oldRec) previousInadimplente = oldRec.inadimplente;
-          tempState[oldPeriodIdx].records = tempState[oldPeriodIdx].records.filter(r => r.id !== finalRecordId);
-       }
+      const oldPeriodIdx = tempState.findIndex(p => p.id === window.editingPeriodId);
+      if (oldPeriodIdx !== -1) {
+        const oldRec = tempState[oldPeriodIdx].records.find(r => r.id === finalRecordId);
+        if (oldRec) previousInadimplente = oldRec.inadimplente;
+        tempState[oldPeriodIdx].records = tempState[oldPeriodIdx].records.filter(r => r.id !== finalRecordId);
+      }
     }
 
     const newRecord = {
@@ -636,14 +636,14 @@ function setupForms() {
         });
         usinaIndex = tempState.length - 1;
       }
-      
+
       const existingRecordIndex = tempState[usinaIndex].records.findIndex(r => r.month === usinaMonth);
       if (existingRecordIndex !== -1) {
-         tempState[usinaIndex].records[existingRecordIndex] = newRecord;
+        tempState[usinaIndex].records[existingRecordIndex] = newRecord;
       } else {
-         tempState[usinaIndex].records.push(newRecord);
+        tempState[usinaIndex].records.push(newRecord);
       }
-      
+
       tempState[usinaIndex].records.sort((a, b) => a.month.localeCompare(b.month));
       state.usinas = tempState;
 
@@ -669,17 +669,17 @@ function setupForms() {
   }
 }
 
-window.startInlineEdit = function(periodId, recordId) {
+window.startInlineEdit = function (periodId, recordId) {
   state.inlineEditingRecordId = recordId;
   state.inlineEditingPeriodId = periodId;
 };
 
-window.cancelInlineEdit = function() {
+window.cancelInlineEdit = function () {
   state.inlineEditingRecordId = null;
   state.inlineEditingPeriodId = null;
 };
 
-window.saveInlineEdit = async function(periodId, recordId) {
+window.saveInlineEdit = async function (periodId, recordId) {
   const row = document.querySelector(`tr[data-record-id="${recordId}"]`);
   if (!row) return;
 
@@ -700,12 +700,12 @@ window.saveInlineEdit = async function(periodId, recordId) {
       record.dateInclusion = newDate;
       record.status = newStatus;
       record.tipoCliente = newTipo;
-      
+
       // Handle Data de Saída logic if status changed
       if (newStatus !== 'Saíram') {
         record.dateSaida = '';
       }
-      
+
       state.periods = tempState;
 
       // Update backend
@@ -791,7 +791,7 @@ window.setActivePeriod = function (periodId) {
 window.editingRecordId = null;
 window.editingPeriodId = null;
 
-window.editClient = function(periodId, recordId) {
+window.editClient = function (periodId, recordId) {
   const p = state.periods.find(x => x.id === periodId);
   if (!p) return;
   const record = p.records.find(r => r.id === recordId);
@@ -802,7 +802,7 @@ window.editClient = function(periodId, recordId) {
 
   document.getElementById('clientName').value = record.clientName;
   document.getElementById('avgKw').value = record.avgKw;
-  
+
   if (record.dateInclusion.includes('/')) {
     const parts = record.dateInclusion.split('/');
     if (parts.length === 3) {
@@ -811,23 +811,23 @@ window.editClient = function(periodId, recordId) {
   } else {
     document.getElementById('dateInclusion').value = record.dateInclusion;
   }
-  
+
   document.getElementById('clientStatus').value = record.status;
   document.getElementById('tipoCliente').value = record.tipoCliente;
-  
+
   if (record.status === 'Saíram') {
     document.getElementById('dataSaidaGroup').style.display = 'block';
     if (document.getElementById('dateSaida')) {
       document.getElementById('dateSaida').required = true;
       if (record.dateSaida) {
-         if (record.dateSaida.includes('/')) {
-            const sparts = record.dateSaida.split('/');
-            document.getElementById('dateSaida').value = `${sparts[2]}-${sparts[1]}-${sparts[0]}`;
-         } else {
-            document.getElementById('dateSaida').value = record.dateSaida;
-         }
+        if (record.dateSaida.includes('/')) {
+          const sparts = record.dateSaida.split('/');
+          document.getElementById('dateSaida').value = `${sparts[2]}-${sparts[1]}-${sparts[0]}`;
+        } else {
+          document.getElementById('dateSaida').value = record.dateSaida;
+        }
       } else {
-         document.getElementById('dateSaida').value = '';
+        document.getElementById('dateSaida').value = '';
       }
     }
   } else {
@@ -848,11 +848,11 @@ window.editClient = function(periodId, recordId) {
   window.scrollTo({ top: document.getElementById('form-main-title').offsetTop - 50, behavior: 'smooth' });
 };
 
-window.cancelEditMode = function() {
+window.cancelEditMode = function () {
   window.editingRecordId = null;
   window.editingPeriodId = null;
   document.getElementById('record-form').reset();
-  
+
   document.getElementById('clientStatus').value = "Ativos";
   document.getElementById('tipoCliente').value = "Pessoa Física";
   document.getElementById('dataSaidaGroup').style.display = 'none';
@@ -907,7 +907,7 @@ function updateDataEntryUI() {
     activePeriodContent.style.display = 'block';
     if (deleteMonthBtn) deleteMonthBtn.style.display = 'none';
     currentPeriodTitle.innerHTML = `Resultados para: "${searchInput.value}" <span class="badge">Busca Global</span>`;
-    
+
     // Flatten and filter ALL records
     let results = [];
     state.periods.forEach(p => {
@@ -982,7 +982,7 @@ function renderRecordsTable(records, tbody) {
 
     const tr = document.createElement('tr');
     tr.setAttribute('data-record-id', record.id);
-    
+
     if (isEditing) {
       tr.innerHTML = `
         <td><input type="text" class="edit-name" value="${record.clientName}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);"></td>
@@ -1123,7 +1123,7 @@ function updateUsinasUI() {
   const container = document.getElementById('usinas-accordion-container');
   const emptyState = document.getElementById('no-usinas-state');
   const datalist = document.getElementById('usinas-list');
-  
+
   if (!container) return;
 
   if (datalist) {
@@ -1241,10 +1241,10 @@ function updateUsinasUI() {
   });
 }
 
-window.toggleUsinaAccordion = function(element) {
+window.toggleUsinaAccordion = function (element) {
   const item = element.closest('.accordion-item');
   const content = item.querySelector('.accordion-content');
-  
+
   if (item.classList.contains('active')) {
     item.classList.remove('active');
     content.style.maxHeight = '0';
@@ -1258,14 +1258,14 @@ function generateUsinaTableRowsHTML(usinaName, records) {
   if (!records || records.length === 0) {
     return `<tr><td colspan="4" style="text-align: center; color: #6b7280;">Nenhum registro encontrado.</td></tr>`;
   }
-  
+
   const safeUsinaName = usinaName.replace(/'/g, "\\'");
-  
+
   return records.map(record => {
     let fmtMonth = record.month;
     const parts = record.month.split('-');
     if (parts.length === 2) fmtMonth = `${parts[1]}/${parts[0]}`;
-    
+
     return `
       <tr id="row-${record.id}">
         <td>${fmtMonth}</td>
@@ -1300,7 +1300,7 @@ function generateUsinaTableRowsHTML(usinaName, records) {
   }).join('');
 }
 
-window.toggleUsinaEditModeMaster = function(event, usinaName) {
+window.toggleUsinaEditModeMaster = function (event, usinaName) {
   event.stopPropagation();
   if (window.usinasInEditMode.has(usinaName)) {
     window.usinasInEditMode.delete(usinaName);
@@ -1310,7 +1310,7 @@ window.toggleUsinaEditModeMaster = function(event, usinaName) {
   updateUsinasUI();
 };
 
-window.deleteUsinaComplete = async function(event, usinaName) {
+window.deleteUsinaComplete = async function (event, usinaName) {
   event.stopPropagation();
   if (confirm(`Atenção: Isso excluirá a usina "${usinaName}" e TODO o seu histórico. Confirmar?`)) {
     state.usinas = state.usinas.filter(u => u.name !== usinaName);
@@ -1320,7 +1320,7 @@ window.deleteUsinaComplete = async function(event, usinaName) {
   }
 };
 
-window.deleteUsinaRecord = async function(usinaName, recordId) {
+window.deleteUsinaRecord = async function (usinaName, recordId) {
   if (confirm("Tem certeza que deseja excluir os dados deste mês?")) {
     const tempState = [...state.usinas];
     const usinaIndex = tempState.findIndex(u => u.name === usinaName);
@@ -1334,7 +1334,7 @@ window.deleteUsinaRecord = async function(usinaName, recordId) {
   }
 };
 
-window.editUsinaRecord = function(recordId) {
+window.editUsinaRecord = function (recordId) {
   const row = document.getElementById(`row-${recordId}`);
   if (!row) return;
   row.querySelectorAll('.read-only-val').forEach(el => el.style.display = 'none');
@@ -1343,7 +1343,7 @@ window.editUsinaRecord = function(recordId) {
   row.querySelector('.action-btns-edit').style.display = 'flex';
 };
 
-window.cancelUsinaRecord = function(recordId) {
+window.cancelUsinaRecord = function (recordId) {
   const row = document.getElementById(`row-${recordId}`);
   if (!row) return;
   row.querySelectorAll('.read-only-val').forEach(el => el.style.display = 'inline-block');
@@ -1355,12 +1355,12 @@ window.cancelUsinaRecord = function(recordId) {
   row.querySelector('.action-btns-edit').style.display = 'none';
 };
 
-window.saveUsinaRecord = async function(usinaName, recordId, usinaMonth) {
+window.saveUsinaRecord = async function (usinaName, recordId, usinaMonth) {
   const inputEsperada = document.getElementById(`edit-esperada-${recordId}`);
   const inputCompensada = document.getElementById(`edit-compensada-${recordId}`);
   const usinaEsperada = parseFloat(inputEsperada.value);
   const usinaCompensada = parseFloat(inputCompensada.value);
-  
+
   if (isNaN(usinaEsperada) || isNaN(usinaCompensada)) {
     alert("Valores numéricos inválidos.");
     return;
@@ -1373,9 +1373,9 @@ window.saveUsinaRecord = async function(usinaName, recordId, usinaMonth) {
     if (recordIndex > -1) {
       tempState[usinaIndex].records[recordIndex].esperada = usinaEsperada;
       tempState[usinaIndex].records[recordIndex].compensada = usinaCompensada;
-      
+
       state.usinas = tempState;
-      
+
       if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
         await postToGoogleSheets({
           action: 'update_usina',
@@ -1392,7 +1392,7 @@ window.saveUsinaRecord = async function(usinaName, recordId, usinaMonth) {
 
 function renderUsinaCharts(usina, canvasIdSuffix) {
   if (!usina.records || usina.records.length === 0) return;
-  
+
   Chart.defaults.color = '#6b7280';
   Chart.defaults.font.family = "'Inter', sans-serif";
   Chart.defaults.scale.grid.color = '#e5e7eb';
@@ -1438,14 +1438,14 @@ function renderUsinaCharts(usina, canvasIdSuffix) {
         responsive: true,
         maintainAspectRatio: false,
         cutout: '60%',
-        layout: { 
+        layout: {
           padding: { top: 30, bottom: 20, left: 30, right: 30 }
         },
         plugins: {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(context) { return context.label + ': ' + context.raw + ' kW'; }
+              label: function (context) { return context.label + ': ' + context.raw + ' kW'; }
             }
           },
           datalabels: {
@@ -1494,7 +1494,7 @@ function renderUsinaCharts(usina, canvasIdSuffix) {
         responsive: true,
         maintainAspectRatio: false,
         layout: { padding: { top: 25 } },
-        plugins: { 
+        plugins: {
           legend: { position: 'top' },
           datalabels: {
             anchor: 'end',
@@ -1536,8 +1536,8 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       responsive: true,
       maintainAspectRatio: false,
       layout: { padding: { top: 25 } },
-      plugins: { 
-        legend: { display: false }, 
+      plugins: {
+        legend: { display: false },
         tooltip: { backgroundColor: '#1f2937', padding: 10, cornerRadius: 4 },
         datalabels: {
           anchor: 'end',
@@ -1572,7 +1572,7 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       maintainAspectRatio: false,
       cutout: '65%',
       layout: { padding: { top: 75, bottom: 85, left: 75, right: 75 } },
-      plugins: { 
+      plugins: {
         legend: { display: false },
         datalabels: {
           anchor: 'end',
@@ -1642,7 +1642,7 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
         maintainAspectRatio: false,
         cutout: '65%',
         layout: { padding: { top: 75, bottom: 85, left: 75, right: 75 } },
-        plugins: { 
+        plugins: {
           legend: { display: false },
           datalabels: {
             anchor: 'end',
@@ -1697,7 +1697,7 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { 
+      plugins: {
         legend: { display: false },
         datalabels: {
           color: '#FFFFFF',
@@ -1795,8 +1795,8 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       maintainAspectRatio: false,
       layout: { padding: { top: 35, right: 20, bottom: 20 } },
       plugins: {
-        legend: { 
-          display: true, 
+        legend: {
+          display: true,
           position: 'top',
           align: 'end',
           labels: { boxWidth: 12, font: { weight: 600 } }
@@ -1805,9 +1805,9 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
           formatter: (value) => value
         }
       },
-      scales: { 
-        y: { 
-          beginAtZero: true, 
+      scales: {
+        y: {
+          beginAtZero: true,
           grace: '15%',
           ticks: { stepSize: 1, color: '#6b7280' },
           grid: { borderDash: [5, 5] }
@@ -1842,7 +1842,7 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
         maintainAspectRatio: false,
         cutout: '65%',
         layout: { padding: { top: 90, bottom: 90, left: 90, right: 90 } },
-        plugins: { 
+        plugins: {
           legend: { display: false },
           datalabels: {
             anchor: 'end',
@@ -2059,7 +2059,7 @@ function setupOrganizacaoFilters() {
   kwInput.addEventListener('input', () => updateOrganizacaoUI());
   statusSelect.addEventListener('change', () => updateOrganizacaoUI());
   if (nameInput) nameInput.addEventListener('input', () => updateOrganizacaoUI());
-  
+
   btnClear.addEventListener('click', () => {
     kwInput.value = '';
     statusSelect.value = 'Todos';
@@ -2073,7 +2073,7 @@ function updateOrganizacaoUI() {
   const noResults = document.getElementById('organizacao-no-results');
   const summaryContainer = document.getElementById('organizacao-summary-container');
   const tableContainer = document.querySelector('#organizacao-view .table-container');
-  
+
   if (!tbody || !summaryContainer) return;
 
   const kwMin = parseFloat(document.getElementById('filterKwMin').value) || 0;
@@ -2096,13 +2096,13 @@ function updateOrganizacaoUI() {
     const matchesKw = c.avgKw >= kwMin;
     const matchesName = normalizedSearch === '' || normalizeString(c.clientName).includes(normalizedSearch);
     let matchesStatus = true;
-    
+
     if (statusFilter === 'Inadimplentes') {
       matchesStatus = c.inadimplente === true;
     } else if (statusFilter !== 'Todos') {
       matchesStatus = c.status === statusFilter;
     }
-    
+
     return matchesKw && matchesStatus && matchesName;
   });
 
@@ -2121,17 +2121,17 @@ function updateOrganizacaoUI() {
           Resultados: <span class="highlight">${filteredCount}</span> clientes encontrados
         </div>
         <div class="metric-detail">
-          ${isFiltered 
-            ? `Representa <span class="highlight">${percentage}%</span> do total de <span class="highlight">${totalCount}</span> clientes`
-            : `Mostrando todos os <span class="highlight">${totalCount}</span> clientes cadastrados (100%)`
-          }
+          ${isFiltered
+        ? `Representa <span class="highlight">${percentage}%</span> do total de <span class="highlight">${totalCount}</span> clientes`
+        : `Mostrando todos os <span class="highlight">${totalCount}</span> clientes cadastrados (100%)`
+      }
         </div>
       </div>
     `;
   }
 
   tbody.innerHTML = '';
-  
+
   if (filtered.length === 0) {
     if (tableContainer) tableContainer.style.display = 'none';
     noResults.style.display = 'block';
@@ -2206,12 +2206,12 @@ function updateCreditosUI() {
   const chartCanvas = document.getElementById('creditosChart');
   const tbody = document.getElementById('creditos-tbody');
   const noCreditos = document.getElementById('no-creditos');
-  
+
   if (!chartCanvas || !tbody) return;
 
   const creditos = state.creditos;
   const monthOrder = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  
+
   // Table Rendering (Grouped by Unit)
   tbody.innerHTML = '';
   if (creditos.length === 0) {
@@ -2233,8 +2233,8 @@ function updateCreditosUI() {
 
     // Filter and sort records for this unit
     const unitRecords = creditos.filter(c => c.unidade === unit).sort((a, b) => {
-        if (a.ano !== b.ano) return b.ano - a.ano;
-        return monthOrder.indexOf(b.mes) - monthOrder.indexOf(a.mes);
+      if (a.ano !== b.ano) return b.ano - a.ano;
+      return monthOrder.indexOf(b.mes) - monthOrder.indexOf(a.mes);
     });
 
     unitRecords.forEach(c => {
@@ -2305,7 +2305,7 @@ function updateCreditosUI() {
       '#14b8a6', // Teal
       '#f43f5e'  // Rose
     ];
-    
+
     return {
       label: period,
       data: units.map(unit => {
@@ -2382,15 +2382,15 @@ function updateCreditosUI() {
   });
 }
 
-window.startInlineEditCredito = function(id) {
+window.startInlineEditCredito = function (id) {
   state.inlineEditingCreditoId = id;
 };
 
-window.cancelInlineEditCredito = function() {
+window.cancelInlineEditCredito = function () {
   state.inlineEditingCreditoId = null;
 };
 
-window.saveInlineEditCredito = async function(id) {
+window.saveInlineEditCredito = async function (id) {
   const row = document.querySelector(`tr[data-credito-id="${id}"]`);
   if (!row) return;
 
@@ -2416,7 +2416,7 @@ window.saveInlineEditCredito = async function(id) {
   window.cancelInlineEditCredito();
 };
 
-window.deleteCredito = async function(id) {
+window.deleteCredito = async function (id) {
   if (confirm("Deseja realmente excluir este lançamento de crédito?")) {
     const tempCreditos = state.creditos.filter(c => c.id !== id);
     state.creditos = tempCreditos;
