@@ -1049,6 +1049,7 @@ function updateDashboardUI() {
   let countInadimplentes = 0; let kwInadimplentes = 0;
   let countInadimplentesAtivos = 0;
   let countPF = 0; let countPJ = 0;
+  let kwPF = 0; let kwPJ = 0;
 
   const labels = [];
   const barData = [];
@@ -1077,8 +1078,8 @@ function updateDashboardUI() {
         if (r.status === 'Ativos') countInadimplentesAtivos++;
       }
 
-      if (r.tipoCliente === 'Pessoa Jurídica') countPJ++;
-      else countPF++;
+      if (r.tipoCliente === 'Pessoa Jurídica') { countPJ++; kwPJ += r.avgKw; }
+      else { countPF++; kwPF += r.avgKw; }
     });
 
     totalKw += periodTotalKw;
@@ -1116,7 +1117,7 @@ function updateDashboardUI() {
   const statInadimplentesKw = document.getElementById('stat-inadimplentes-kw');
   if (statInadimplentesKw) statInadimplentesKw.textContent = kwInadimplentes.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' kW Total';
 
-  renderCharts(labels, barData, lineData, lineNetData, countAtivos, countEspera, countSairam, saidasData, countInadimplentesAtivos, totalClients, countPF, countPJ, newClientsData);
+  renderCharts(labels, barData, lineData, lineNetData, countAtivos, countEspera, countSairam, saidasData, countInadimplentesAtivos, totalClients, countPF, countPJ, kwPF, kwPJ, totalKw, newClientsData);
 }
 
 function updateUsinasUI() {
@@ -1512,7 +1513,7 @@ function renderUsinaCharts(usina, canvasIdSuffix) {
   }
 }
 
-function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, cSairam, saidasData, cInadimplentesAtivos, totalClients, countPF, countPJ, newClientsData) {
+function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, cSairam, saidasData, cInadimplentesAtivos, totalClients, countPF, countPJ, kwPF, kwPJ, totalKwTipo, newClientsData) {
   Chart.defaults.color = '#6b7280';
   Chart.defaults.font.family = "'Inter', sans-serif";
   Chart.defaults.scale.grid.color = '#e5e7eb';
@@ -1832,6 +1833,7 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
         labels: ['Pessoa Física', 'Pessoa Jurídica'],
         datasets: [{
           data: [countPF, countPJ],
+          kwData: [kwPF, kwPJ], // Store kW data in the dataset for tooltip access
           backgroundColor: ['#f97316', '#4b5563'],
           borderWidth: 2,
           borderColor: '#ffffff'
@@ -1841,22 +1843,64 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
         responsive: true,
         maintainAspectRatio: false,
         cutout: '65%',
-        layout: { padding: { top: 90, bottom: 90, left: 90, right: 90 } },
+        layout: { padding: { top: 95, bottom: 95, left: 100, right: 100 } },
         plugins: {
           legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1f2937',
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            callbacks: {
+              label: function (context) {
+                const label = context.label || '';
+                const value = context.raw;
+                const kwValue = context.dataset.kwData[context.dataIndex];
+                
+                let sumCount = 0;
+                context.chart.data.datasets[0].data.forEach(d => sumCount += d);
+                let sumKw = 0;
+                context.chart.data.datasets[0].kwData.forEach(d => sumKw += d);
+                
+                const pctCount = sumCount > 0 ? (value * 100 / sumCount).toFixed(1) : 0;
+                const pctKw = sumKw > 0 ? (kwValue * 100 / sumKw).toFixed(1) : 0;
+                
+                return [
+                  `Clientes: ${value} (${pctCount}%)`,
+                  `Volume: ${kwValue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW (${pctKw}%)`
+                ];
+              }
+            }
+          },
           datalabels: {
             anchor: 'end',
             align: (ctx) => ctx.dataIndex === 0 ? 'bottom' : 'top',
-            offset: 40,
+            offset: 45,
             color: '#374151',
-            font: { weight: 'bold', family: "'Inter', sans-serif" },
+            textAlign: 'center',
+            padding: 6,
+            font: { weight: 'bold', family: "'Inter', sans-serif", size: 11 },
             formatter: (value, ctx) => {
-              let sum = 0;
-              let dataArr = ctx.chart.data.datasets[0].data;
-              dataArr.forEach(data => { sum += data; });
-              if (sum === 0 || value === 0) return '';
-              let percentage = (value * 100 / sum).toFixed(1) + "%";
-              return `${ctx.chart.data.labels[ctx.dataIndex]}:\n${value} (${percentage})`;
+              const kwValue = ctx.dataset.kwData[ctx.dataIndex];
+              let sumCount = 0;
+              ctx.chart.data.datasets[0].data.forEach(d => sumCount += d);
+              let sumKw = 0;
+              ctx.chart.data.datasets[0].kwData.forEach(d => sumKw += d);
+
+              if (sumCount === 0 || value === 0) return '';
+              
+              const pctCount = (value * 100 / sumCount).toFixed(1) + "%";
+              const pctKw = sumKw > 0 ? (kwValue * 100 / sumKw).toFixed(1) + "%" : "0%";
+              
+              const label = ctx.chart.data.labels[ctx.dataIndex];
+              
+              // Multi-line array for Chart.js datalabels
+              return [
+                label,
+                `Qtd: ${value} (${pctCount})`,
+                `Vol: ${kwValue.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kW (${pctKw})`
+              ];
             }
           }
         }
