@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coenergy KPI's</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <!-- Logo Image -->
+          <img id="company-logo"
+            src="https://ui-avatars.com/api/?name=Coenergy&background=f97316&color=fff&size=128&rounded=true"
+            alt="Coenergy Logo">
+          <!-- Logo Upload Button -->
+          <label class="btn-logo-upload" for="logo-upload" title="Carregar Logomarca">
+            <i class="fa-solid fa-camera"></i>
+          </label>
+          <input type="file" id="logo-upload" accept="image/*" style="display:none">
+        </div>
+        <h2 class="sidebar-title">Coenergy</h2>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-target="dashboard-view">
+          <i class="fa-solid fa-chart-pie"></i>
+          Coenergy KPI's
+        </button>
+        <button class="nav-item" data-target="usinas-view">
+          <i class="fa-solid fa-solar-panel"></i>
+          Usinas
+        </button>
+        <button class="nav-item" data-target="organizacao-view">
+          <i class="fa-solid fa-users-gear"></i>
+          Organização Clientes
+        </button>
+        <button class="nav-item" data-target="creditos-view">
+          <i class="fa-solid fa-coins"></i>
+          Controle De Saldo
+        </button>
+      </nav>
+
+      <div class="sidebar-administration">
+        <div class="sidebar-divider"></div>
+        <span class="nav-section-title">ADMINISTRAÇÃO</span>
+        <nav class="sidebar-nav-bottom">
+          <button class="nav-item" data-target="entry-view">
+            <i class="fa-solid fa-database"></i>
+            Entrada de Dados
+          </button>
+          <button class="nav-item" data-target="lote-view">
+            <i class="fa-solid fa-table-list"></i>
+            Entrada em Lote
+          </button>
+        </nav>
+      </div>
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name">Painel Administrativo</span>
+            <span class="user-role">Acesso Local</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- Dashboard View -->
+      <section id="dashboard-view" class="view-section active">
+        <header class="section-header">
+          <div>
+            <h1>Coenergy KPI's</h1>
+            <p class="subtitle">Visão analítica de consumo e status operacional dos clientes</p>
+          </div>
+        </header>
+
+        </header>
+
+        <!-- Main KPI Cards (3x2 Grid) -->
+        <div class="stats-grid main-kpis-grid">
+          <div class="stat-card">
+            <div class="stat-icon bg-orange-light text-orange">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div class="stat-details">
+              <h3>Total de kW</h3>
+              <p class="stat-value" id="stat-total-kw">0</p>
+            </div>
+          </div>
+          <div class="stat-card clickable-card" data-filter="All" style="border-left: 4px solid var(--orange);">
+            <div class="stat-icon bg-orange-light text-orange">
+              <i class="fa-solid fa-users"></i>
+            </div>
+            <div class="stat-details">
+              <h3>Entrada de Clientes</h3>
+              <p class="stat-value" id="stat-total-clientes">0</p>
+            </div>
+          </div>
+          <div class="stat-card border-red clickable-card" data-filter="Inadimplentes">
+            <div class="stat-icon text-red">
+              <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <div class="stat-details">
+              <h3>Inadimplentes</h3>
+              <p class="stat-value" id="stat-inadimplentes">0</p>
+              <p class="stat-subtext" id="stat-inadimplentes-kw"
+                style="font-size: 0.85rem; color: #6b7280; font-weight: 500; margin-top: 4px;">0 kW Total</p>
+            </div>
+          </div>
+          <div class="stat-card solid-orange clickable-card" data-filter="Ativos">
+            <div class="stat-icon white-icon">
+              <i class="fa-solid fa-check-circle"></i>
+            </div>
+            <div class="stat-details">
+              <h3 class="text-white">Ativos</h3>
+              <p class="stat-value text-white" id="stat-ativos">0</p>
+              <p class="stat-subtext text-white" id="stat-ativos-kw"
+                style="font-size: 0.85rem; font-weight: 500; margin-top: 4px; opacity: 0.9;">0 kW Total</p>
+            </div>
+          </div>
+          <div class="stat-card border-orange clickable-card" data-filter="Em espera">
+            <div class="stat-icon text-orange">
+              <i class="fa-solid fa-clock"></i>
+            </div>
+            <div class="stat-details">
+              <h3>Em espera</h3>
+              <p class="stat-value" id="stat-espera">0</p>
+              <p class="stat-subtext" id="stat-espera-kw"
+                style="font-size: 0.85rem; color: #6b7280; font-weight: 500; margin-top: 4px;">0 kW Total</p>
+            </div>
+          </div>
+          <div class="stat-card border-gray clickable-card" data-filter="Saíram">
+            <div class="stat-icon text-gray">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </div>
+            <div class="stat-details">
+              <h3>Saíram</h3>
+              <p class="stat-value" id="stat-sairam">0</p>
+              <p class="stat-subtext" id="stat-sairam-kw"
+                style="font-size: 0.85rem; color: #6b7280; font-weight: 500; margin-top: 4px;">0 kW Total</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-charts-layout">
+          <!-- Row 1: Entrada de kW (Full Width) -->
+          <div class="chart-card">
+            <h3 class="chart-title">Entrada de kW por Mês/ano</h3>
+            <div class="chart-container standard">
+              <canvas id="barChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Row 2: Entrada de Clientes (Full Width) -->
+          <div class="chart-card">
+            <h3 class="chart-title">Entrada de Clientes por Mês/ano</h3>
+            <div class="chart-container standard">
+              <canvas id="newClientsChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Row 3: Tendência de Crescimento (Full Width) -->
+          <div class="chart-card">
+            <h3 class="chart-title">Tendência de Crescimento (Histórico)</h3>
+            <div class="chart-container expanded">
+              <canvas id="lineChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Row 4: Donut Charts -->
+          <div class="charts-donuts-row">
+            <div class="chart-card">
+              <h3 class="chart-title">Distribuição de Status (%)</h3>
+              <div class="chart-container compact">
+                <canvas id="statusChart"></canvas>
+              </div>
+              <div id="status-percentages" class="percentages-container"></div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Taxa de Inadimplência (%)</h3>
+              <div class="chart-container compact">
+                <canvas id="inadimplenciaChart"></canvas>
+              </div>
+              <div id="inadimplencia-percentages" class="percentages-container"></div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Distribuição por Tipo de Cliente</h3>
+              <div class="chart-container compact">
+                <canvas id="tipoClienteChart"></canvas>
+              </div>
+              <div id="tipoCliente-percentages" class="percentages-container"></div>
+            </div>
+          </div>
+
+          <!-- Row 5: Bottom Chart -->
+          <div class="charts-bottom-row">
+            <div class="chart-card">
+              <h3 class="chart-title">Saídas por Mês</h3>
+              <div class="chart-container standard">
+                <canvas id="saidasChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Entry View -->
+      <section id="entry-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Gerenciamento de Dados</h1>
+            <p class="subtitle">Cadastre e atualize informações dos clientes Coenergy</p>
+          </div>
+        </header>
+
+        <div class="entry-layout">
+          <!-- Periods Navigation -->
+          <div class="periods-panel white-panel">
+            <div class="panel-header">
+              <h3>Mês e Ano</h3>
+              <button class="btn btn-icon btn-primary" id="add-period-btn" title="Nova Aba/Período">
+                <i class="fa-solid fa-folder-plus"></i>
+              </button>
+            </div>
+            <div class="periods-list" id="periods-list">
+              <!-- Dynamically populated periods -->
+            </div>
+          </div>
+
+          <!-- Data Entry Panel -->
+          <div class="data-panel">
+
+            <!-- FORMULARIO DE ENTRADA EXCLUSIVO AQUI -->
+            <div class="form-card white-panel shadow" style="margin-bottom: 2rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 id="form-main-title" class="form-title" style="margin-bottom: 0;">Adicionar / Editar Cliente</h3>
+                <span id="form-success-msg" style="display: none; color: #10b981; font-weight: 600; font-size: 0.9rem;">
+                  <i class="fa-solid fa-check-circle"></i> <span id="form-success-text">Cliente adicionado com
+                    sucesso!</span>
+                </span>
+              </div>
+              <form id="record-form">
+                <div class="form-row">
+                  <div class="form-group flex-2">
+                    <label for="clientName">Nome do Cliente</label>
+                    <input type="text" id="clientName" required placeholder="Digite o nome do cliente">
+                  </div>
+                  <div class="form-group">
+                    <label for="avgKw">Média de kW</label>
+                    <input type="number" id="avgKw" step="0.1" min="0" required placeholder="0.0">
+                  </div>
+                  <div class="form-group">
+                    <label for="dateInclusion">Data de Inclusão</label>
+                    <input type="date" id="dateInclusion" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="clientStatus">Status do Cliente</label>
+                    <select id="clientStatus" required>
+                      <option value="Ativos">Ativos</option>
+                      <option value="Em espera">Em espera</option>
+                      <option value="Saíram">Saíram</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="tipoCliente">Tipo de Cliente</label>
+                    <select id="tipoCliente" required>
+                      <option value="Pessoa Física" selected>Pessoa Física</option>
+                      <option value="Pessoa Jurídica">Pessoa Jurídica</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="dataSaidaGroup" style="display: none;">
+                    <label for="dateSaida">Data de Saída</label>
+                    <input type="date" id="dateSaida">
+                  </div>
+                  <div class="form-group align-bottom"
+                    style="flex: 1 1 100%; display: flex; justify-content: center; margin-top: 16px;">
+                    <button id="btn-submit-client" type="submit" class="btn btn-primary"
+                      style="width: auto !important; flex: 0 0 auto !important; padding: 12px 40px; font-size: 1rem; border-radius: 9999px;">
+                      <i class="fa-solid fa-save" id="btn-submit-icon"></i> <span id="btn-submit-text">Salvar</span>
+                    </button>
+                    <button type="button" id="btn-cancel-edit" class="btn"
+                      style="display: none; background: #e5e7eb; color: #374151; width: auto !important; flex: 0 0 auto !important; padding: 12px 40px; font-size: 1rem; border-radius: 9999px; margin-left: 16px;"
+                      onclick="cancelEditMode()">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="search-container shadow" style="margin-bottom: 2rem; position: relative;">
+              <i class="fa-solid fa-magnifying-glass search-icon"
+                style="position: absolute; left: 24px; top: 50%; transform: translateY(-50%); color: var(--orange); font-size: 1.1rem; z-index: 10;"></i>
+              <input type="text" id="global-client-search" class="global-search-input"
+                placeholder="Buscar Cliente (Histórico Completo)..."
+                style="width: 100%; padding: 18px 24px 18px 60px; border-radius: var(--radius-lg); border: 2px solid var(--border-color); font-size: 1.1rem; font-family: var(--font-body); text-align: center; outline: none; transition: var(--transition);">
+            </div>
+
+            <div class="panel-header page-header">
+              <h2 id="current-period-title">Selecione uma aba</h2>
+              <div class="period-stats" style="display: flex; gap: 1rem; align-items: center;">
+                <span class="badge" id="period-clients-badge">0 Registros</span>
+                <span class="badge badge-accent" id="period-kw-badge">0 kW</span>
+                <button id="btn-delete-month" class="btn-danger-sm" style="display: none; padding: 0.5rem 1rem;"
+                  onclick="deleteCurrentMonth()">
+                  <i class="fa-solid fa-trash"></i> Excluir Mês
+                </button>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="no-period-selected" class="empty-state">
+              <i class="fa-regular fa-folder-open text-orange"
+                style="font-size:3rem; opacity:0.8; margin-bottom:1rem;"></i>
+              <p>Crie uma nova aba de período ou selecione uma existente na barra lateral para ver os dados.</p>
+            </div>
+
+            <!-- Active Period Content -->
+            <div id="active-period-content" style="display: none;">
+              <div class="table-container white-panel shadow">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nome do Cliente</th>
+                      <th>Tipo</th>
+                      <th>Data de Inclusão</th>
+                      <th>Média de kW</th>
+                      <th>Status</th>
+                      <th>Data de Saída</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="records-tbody">
+                    <!-- Dynamically populated rows -->
+                  </tbody>
+                </table>
+                <div id="no-records" class="empty-state small" style="display: none;">
+                  <p>Nenhum cliente cadastrado nesta aba.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Usinas View -->
+      <section id="usinas-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Gestão de Usinas</h1>
+            <p class="subtitle">Acompanhe a produção e compensação das Usinas Solares</p>
+          </div>
+        </header>
+
+        <!-- Informational Alert -->
+        <div class="white-panel shadow"
+          style="padding: 16px; margin-bottom: 24px; border-left: 4px solid var(--orange); display: flex; align-items: flex-start; gap: 12px;">
+          <i class="fa-solid fa-circle-info text-orange" style="font-size: 1.5rem; margin-top: 2px;"></i>
+          <div>
+            <h4 style="margin-bottom: 4px; color: var(--text-main);">Configure seu Google Sheets</h4>
+            <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;">
+              Lembre-se de criar uma aba específica chamada <strong>"Usinas"</strong> na sua planilha do Google para que
+              estes dados não se misturem aos dos clientes. O envio dos dados conterá uma flag interna (`action:
+              'add_usina'`) sinalizando este módulo.
+            </p>
+          </div>
+        </div>
+
+        <!-- Form Usinas -->
+        <div class="form-card white-panel shadow" style="margin-bottom: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 class="form-title" style="margin-bottom: 0;">Lançar Produção da Usina</h3>
+            <span id="usina-success-msg" style="display: none; color: #10b981; font-weight: 600; font-size: 0.9rem;">
+              <i class="fa-solid fa-check-circle"></i> Produção lançada com sucesso!
+            </span>
+          </div>
+          <form id="usina-form">
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label for="usinaName">Nome da Usina</label>
+                <input type="text" id="usinaName" list="usinas-list" required placeholder="Selecione ou digite o nome">
+                <datalist id="usinas-list">
+                  <!-- Dynamically populated options -->
+                </datalist>
+              </div>
+              <div class="form-group">
+                <label for="usinaMonth">Mês / Ano</label>
+                <input type="month" id="usinaMonth" required>
+              </div>
+              <div class="form-group">
+                <label for="usinaEsperada">Energia Injetada (kW)</label>
+                <input type="number" id="usinaEsperada" step="0.1" min="0" required placeholder="0.0">
+              </div>
+              <div class="form-group">
+                <label for="usinaCompensada">Efetivamente Compensado (kW)</label>
+                <input type="number" id="usinaCompensada" step="0.1" min="0" required placeholder="0.0">
+              </div>
+              <div class="form-group align-bottom">
+                <button type="submit" class="btn btn-primary btn-block">
+                  <i class="fa-solid fa-plus"></i> Adicionar
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Usinas Accordion Container -->
+        <div id="usinas-accordion-container">
+          <!-- Accordion Items generated by JS -->
+          <div class="empty-state small" id="no-usinas-state">
+            <p>Nenhuma usina cadastrada ainda. Utilize o formulário acima para começar.</p>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Bulk Entry View (Entrada em Lote) -->
+      <section id="lote-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Entrada em Lote</h1>
+            <p class="subtitle">Adicione múltiplos clientes de uma vez usando dados do Excel</p>
+          </div>
+        </header>
+
+        <div class="white-panel shadow" style="padding: 24px;">
+          <!-- Informational Step -->
+          <div
+            style="margin-bottom: 24px; border-left: 4px solid var(--orange); padding: 16px; background-color: var(--bg-app); border-radius: 0 var(--radius-md) var(--radius-md) 0;">
+            <h3 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 8px;">
+              <i class="fa-solid fa-circle-info text-orange"></i> Instruções
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">
+              Cole os dados copiados do Excel aqui. A ordem das colunas deve ser estritamente:
+              <br><br>
+              <strong>Nome do Cliente | Média de kW | Data de Inclusão | Status do Cliente | Tipo de Cliente</strong>
+            </p>
+          </div>
+
+          <!-- Paste Area -->
+          <div id="lote-input-area">
+            <textarea id="lote-textarea" class="lote-textarea"
+              placeholder="Cole seus dados do Excel aqui (Ctrl+V ou Cmd+V)..."></textarea>
+          </div>
+
+          <!-- Preview & Action Area (Hidden initially) -->
+          <div id="lote-preview-area" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 1.1rem; color: var(--text-main);">Visualização dos Dados</h3>
+              <span id="lote-count-badge" class="badge badge-accent">0 registros identificados</span>
+            </div>
+
+            <div class="table-container shadow"
+              style="border: 1px solid var(--border-color); border-radius: var(--radius-md); max-height: 400px; overflow-y: auto; margin-bottom: 24px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome do Cliente</th>
+                    <th>Média de kW</th>
+                    <th>Data de Inclusão</th>
+                    <th>Status</th>
+                    <th>Tipo</th>
+                  </tr>
+                </thead>
+                <tbody id="lote-preview-tbody">
+                  <!-- Dynamically populated rows -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+              <button type="button" id="btn-save-lote" class="btn btn-primary"
+                style="padding: 12px 40px; font-size: 1rem; border-radius: 9999px; width: fit-content; display: inline-flex; justify-content: center; align-items: center;">
+                <i class="fa-solid fa-save"></i> <span id="btn-save-lote-text">Salvar Lote</span>
+              </button>
+
+              <button type="button" id="btn-clear-lote" class="btn"
+                style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted);">
+                <i class="fa-solid fa-rotate-left"></i> Limpar / Tentar Novamente
+              </button>
+
+              <span id="lote-success-msg"
+                style="display: none; color: #10b981; font-weight: 600; font-size: 0.9rem; margin-top: 8px;">
+                <i class="fa-solid fa-check-circle"></i> Clientes adicionados com sucesso!
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Client Organization View (Organização Clientes) -->
+      <section id="organizacao-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Organização Clientes</h1>
+            <p class="subtitle">Filtros avançados e visualização completa da base de dados</p>
+          </div>
+        </header>
+
+        <div class="white-panel shadow" style="padding: 24px; margin-bottom: 24px;">
+          <div class="form-row" style="align-items: flex-end;">
+            <div class="form-group" style="flex: 2;">
+              <label for="filterName">Buscar por Nome</label>
+              <input type="text" id="filterName" placeholder="Ex: João Silva...">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="filterKwMin">Filtrar por kW mínimo</label>
+              <input type="number" id="filterKwMin" placeholder="Ex: 1000" step="0.1" min="0">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="filterStatus">Filtrar por Status</label>
+              <select id="filterStatus">
+                <option value="Todos">Todos</option>
+                <option value="Ativos">Ativos</option>
+                <option value="Em espera">Em espera</option>
+                <option value="Saíram">Saíram</option>
+                <option value="Inadimplentes">Inadimplentes</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 0 0 auto; display: flex; align-items: flex-end;">
+              <button id="btn-clear-filters" class="btn btn-primary" style="padding: 10px 32px; border-radius: 9999px;">
+                <i class="fa-solid fa-filter-circle-xmark"></i> Limpar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="organizacao-summary-container"></div>
+
+        <div class="table-container white-panel shadow">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="text-align: center;">Nome do Cliente</th>
+                <th style="text-align: center;">Tipo</th>
+                <th style="text-align: center;">Média de kW</th>
+                <th style="text-align: center;">Data de Inclusão</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="organizacao-tbody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+          <div id="organizacao-no-results" class="empty-state small" style="display: none;">
+            <p>Nenhum cliente encontrado com esses critérios.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Credit Control View (Controle de Créditos) -->
+      <section id="creditos-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Controle de Saldo de Créditos - Unidades Cordeiro</h1>
+            <p class="subtitle">Gerenciamento e evolução de créditos de energia por unidade</p>
+          </div>
+        </header>
+
+        <!-- Form Créditos -->
+        <div class="form-card white-panel shadow" style="margin-bottom: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 class="form-title" style="margin-bottom: 0;">Lançar Créditos</h3>
+            <span id="credito-success-msg" style="display: none; color: #10b981; font-weight: 600; font-size: 0.9rem;">
+              <i class="fa-solid fa-check-circle"></i> Lançamento salvo com sucesso!
+            </span>
+          </div>
+          <form id="credito-form">
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label for="creditoUnidade">Nome da Unidade Cordeiro</label>
+                <input type="text" id="creditoUnidade" required placeholder="Ex: Cordeiro I">
+              </div>
+              <div class="form-group flex-2">
+                <label for="creditoUC">Número da Unidade Consumidora</label>
+                <input type="text" id="creditoUC" required placeholder="0000000000">
+              </div>
+              <div class="form-group">
+                <label for="creditoTotal">Total de Créditos (kW)</label>
+                <input type="number" id="creditoTotal" step="0.1" min="0" required placeholder="0.0">
+              </div>
+              <div class="form-group">
+                <label for="creditoMes">Mês</label>
+                <select id="creditoMes" required>
+                  <option value="Janeiro">Janeiro</option>
+                  <option value="Fevereiro">Fevereiro</option>
+                  <option value="Março">Março</option>
+                  <option value="Abril">Abril</option>
+                  <option value="Maio">Maio</option>
+                  <option value="Junho">Junho</option>
+                  <option value="Julho">Julho</option>
+                  <option value="Agosto">Agosto</option>
+                  <option value="Setembro">Setembro</option>
+                  <option value="Outubro">Outubro</option>
+                  <option value="Novembro">Novembro</option>
+                  <option value="Dezembro">Dezembro</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="creditoAno">Ano</label>
+                <input type="number" id="creditoAno" required min="2000" max="2100" value="2026">
+              </div>
+            </div>
+            <div class="form-row" style="justify-content: center; margin-top: 1.5rem;">
+               <button type="submit" class="btn btn-primary btn-pill">
+                  Salvar Lançamento
+               </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Charts Container -->
+        <div class="chart-card white-panel shadow" style="margin-bottom: 2rem;">
+          <h3 class="chart-title">Evolução de Créditos por Unidade</h3>
+          <div class="chart-container expanded">
+            <canvas id="creditosChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Data Table Container -->
+        <div class="table-container white-panel shadow">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="text-align: center;">Nome da Unidade</th>
+                <th style="text-align: center;">UC</th>
+                <th style="text-align: center;">Mês</th>
+                <th style="text-align: center;">Ano</th>
+                <th style="text-align: center;">Total de Créditos</th>
+                <th style="text-align: center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="creditos-tbody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+          <div id="no-creditos" class="empty-state small" style="display: none;">
+            <p>Nenhum lançamento de crédito encontrado.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Modal for New Period -->
+    <div id="period-modal" class="modal">
+      <div class="modal-content white-panel shadow">
+        <div class="modal-header">
+          <h2>Nova Aba de Período</h2>
+          <button type="button" class="close-modal" id="close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="period-form">
+          <div class="form-group">
+            <label for="periodMonth">Mês</label>
+            <select id="periodMonth" required>
+              <option value="Janeiro">Janeiro</option>
+              <option value="Fevereiro">Fevereiro</option>
+              <option value="Março">Março</option>
+              <option value="Abril">Abril</option>
+              <option value="Maio">Maio</option>
+              <option value="Junho">Junho</option>
+              <option value="Julho">Julho</option>
+              <option value="Agosto">Agosto</option>
+              <option value="Setembro">Setembro</option>
+              <option value="Outubro">Outubro</option>
+              <option value="Novembro">Novembro</option>
+              <option value="Dezembro">Dezembro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="periodYear">Ano</label>
+            <input type="number" id="periodYear" required min="2000" max="2100" value="2026">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Criar Aba</button>
+        </form>
+      </div>
+    </div>
+    <!-- Modal for Clients List -->
+    <div id="clients-modal" class="modal">
+      <div class="modal-content white-panel shadow" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h2 id="clients-modal-title">Lista de Clientes</h2>
+          <button type="button" class="close-modal" id="close-clients-modal-btn"><i
+              class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr id="clients-modal-thead">
+                <th>Nome do Cliente</th>
+                <th>Tipo</th>
+                <th>Média de kW</th>
+                <th>Data de Inclusão</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="clients-modal-tbody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+          <div id="clients-modal-no-records" class="empty-state small" style="display: none;">
+            <p>Nenhum cliente encontrado nesta categoria.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="global-loader" class="loader-overlay" style="display: none;">
+    <div class="spinner"></div>
+    <p>Carregando dados do servidor...</p>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
