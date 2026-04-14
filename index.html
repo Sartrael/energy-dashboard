@@ -56,6 +56,10 @@
           <i class="fa-solid fa-coins"></i>
           Controle De Saldo
         </button>
+        <button class="nav-item" data-target="inadimplencia-view">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          Inadimplência
+        </button>
       </nav>
 
       <div class="sidebar-administration">
@@ -207,11 +211,18 @@
               <div id="inadimplencia-percentages" class="percentages-container"></div>
             </div>
             <div class="chart-card">
-              <h3 class="chart-title">Distribuição por Tipo de Cliente</h3>
+              <h3 class="chart-title">Distribuição por Tipo (Qtd)</h3>
               <div class="chart-container compact">
                 <canvas id="tipoClienteChart"></canvas>
               </div>
               <div id="tipoCliente-percentages" class="percentages-container"></div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Distribuição por Tipo (Vol kW)</h3>
+              <div class="chart-container compact">
+                <canvas id="tipoClienteKwChart"></canvas>
+              </div>
+              <div id="tipoClienteKw-percentages" class="percentages-container"></div>
             </div>
           </div>
 
@@ -274,7 +285,7 @@
                   </div>
                   <div class="form-group">
                     <label for="dateInclusion">Data de Inclusão</label>
-                    <input type="date" id="dateInclusion" required>
+                    <input type="date" id="dateInclusion" required placeholder="dd/mm/aaaa">
                   </div>
                   <div class="form-group">
                     <label for="clientStatus">Status do Cliente</label>
@@ -291,9 +302,13 @@
                       <option value="Pessoa Jurídica">Pessoa Jurídica</option>
                     </select>
                   </div>
+                  <div class="form-group">
+                    <label for="clientSaldo">Saldo do Cliente</label>
+                    <input type="number" id="clientSaldo" step="0.1" placeholder="0.0">
+                  </div>
                   <div class="form-group" id="dataSaidaGroup" style="display: none;">
                     <label for="dateSaida">Data de Saída</label>
-                    <input type="date" id="dateSaida">
+                    <input type="date" id="dateSaida" placeholder="dd/mm/aaaa">
                   </div>
                   <div class="form-group align-bottom"
                     style="flex: 1 1 100%; display: flex; justify-content: center; margin-top: 16px;">
@@ -349,6 +364,7 @@
                       <th>Data de Inclusão</th>
                       <th>Média de kW</th>
                       <th>Status</th>
+                      <th>Saldo</th>
                       <th>Data de Saída</th>
                       <th>Ações</th>
                     </tr>
@@ -375,19 +391,7 @@
           </div>
         </header>
 
-        <!-- Informational Alert -->
-        <div class="white-panel shadow"
-          style="padding: 16px; margin-bottom: 24px; border-left: 4px solid var(--orange); display: flex; align-items: flex-start; gap: 12px;">
-          <i class="fa-solid fa-circle-info text-orange" style="font-size: 1.5rem; margin-top: 2px;"></i>
-          <div>
-            <h4 style="margin-bottom: 4px; color: var(--text-main);">Configure seu Google Sheets</h4>
-            <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;">
-              Lembre-se de criar uma aba específica chamada <strong>"Usinas"</strong> na sua planilha do Google para que
-              estes dados não se misturem aos dos clientes. O envio dos dados conterá uma flag interna (`action:
-              'add_usina'`) sinalizando este módulo.
-            </p>
-          </div>
-        </div>
+
 
         <!-- Form Usinas -->
         <div class="form-card white-panel shadow" style="margin-bottom: 2rem;">
@@ -456,7 +460,7 @@
             <p style="color: var(--text-muted); font-size: 0.95rem;">
               Cole os dados copiados do Excel aqui. A ordem das colunas deve ser estritamente:
               <br><br>
-              <strong>Nome do Cliente | Média de kW | Data de Inclusão | Status do Cliente | Tipo de Cliente</strong>
+              <strong>Nome do Cliente | Média de kW | Saldo | Data de Inclusão | Status do Cliente | Tipo de Cliente</strong>
             </p>
           </div>
 
@@ -480,6 +484,7 @@
                   <tr>
                     <th>Nome do Cliente</th>
                     <th>Média de kW</th>
+                    <th>Saldo</th>
                     <th>Data de Inclusão</th>
                     <th>Status</th>
                     <th>Tipo</th>
@@ -560,6 +565,7 @@
                 <th style="text-align: center;">Média de kW</th>
                 <th style="text-align: center;">Data de Inclusão</th>
                 <th style="text-align: center;">Status</th>
+                <th style="text-align: center;">SALDO</th>
               </tr>
             </thead>
             <tbody id="organizacao-tbody">
@@ -570,6 +576,8 @@
             <p>Nenhum cliente encontrado com esses critérios.</p>
           </div>
         </div>
+
+        <div id="organizacao-footer-container" style="margin-top: 16px;"></div>
       </section>
 
       <!-- Credit Control View (Controle de Créditos) -->
@@ -661,6 +669,51 @@
           <div id="no-creditos" class="empty-state small" style="display: none;">
             <p>Nenhum lançamento de crédito encontrado.</p>
           </div>
+        </div>
+        </div>
+      </section>
+
+      <!-- Inadimplencia View -->
+      <section id="inadimplencia-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1>Controle de Inadimplência</h1>
+            <p class="subtitle">Gerencie o histórico de contas atrasadas de clientes inadimplentes</p>
+          </div>
+        </header>
+
+        <!-- Formulário Adicionar Conta -->
+        <div class="form-card white-panel shadow" style="margin-bottom: 24px;">
+          <h3 class="form-title">Adicionar Conta em Atraso</h3>
+          <form id="inadimplencia-form" style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 2; margin-bottom: 0;">
+              <label for="inadCliSelect">Cliente Inadimplente</label>
+              <select id="inadCliSelect" required>
+                <!-- Populated via JS -->
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label for="inadData">Data de Emissão</label>
+              <input type="date" id="inadData" required>
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label for="inadValor">Valor da Conta (R$)</label>
+              <input type="number" id="inadValor" step="0.01" min="0" required placeholder="0.00">
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px; min-width: max-content;">Adicionar Cobrança</button>
+          </form>
+        </div>
+
+        <!-- Cards de Inadimplência -->
+        <div id="inadimplencia-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+          <!-- Dynamically generated cards -->
+        </div>
+        <div id="no-inadimplencia-records" class="empty-state large" style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center;">
+          <div style="background: #ecfdf5; color: #10b981; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 20px;">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h3 style="color: #065f46; margin-bottom: 8px;">Nenhum cliente inadimplente</h3>
+          <p style="color: #047857;">Todos os pagamentos estão em dia!</p>
         </div>
       </section>
 

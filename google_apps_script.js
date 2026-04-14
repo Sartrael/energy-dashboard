@@ -13,7 +13,7 @@ function setupSheet() {
   }
   
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["ID", "Nome do Cliente", "Data de Inclusão", "Média de kW", "Status", "Data de Saída", "Inadimplente"]);
+    sheet.appendRow(["ID", "Nome do Cliente", "Data de Inclusão", "Média de kW", "Status", "Data de Saída", "Inadimplente", "Tipo", "Saldo"]);
   }
 }
 
@@ -36,7 +36,9 @@ function doGet(e) {
         avgKw: row[3],
         status: row[4],
         dateSaida: row[5] || "",
-        inadimplente: row[6] === true || String(row[6]).toLowerCase() === 'verdadeiro' || String(row[6]).toLowerCase() === 'true'
+        inadimplente: row[6] === true || String(row[6]).toLowerCase() === 'verdadeiro' || String(row[6]).toLowerCase() === 'true',
+        tipoCliente: row[7] || "Pessoa Física",
+        saldo: parseFloat(row[8]) || 0
       };
       
       // Parse dateInclusion
@@ -101,7 +103,7 @@ function doPost(e) {
       var newId = maxId + 1;
       
       var isInadimplente = body.inadimplente === true;
-      sheet.appendRow([newId, body.clientName, body.dateInclusion, body.avgKw, body.status, body.dateSaida || "", isInadimplente]);
+      sheet.appendRow([newId, body.clientName, body.dateInclusion, body.avgKw, body.status, body.dateSaida || "", isInadimplente, body.tipoCliente || "Pessoa Física", body.saldo || 0]);
       return ContentService.createTextOutput(JSON.stringify({success: true, id: newId})).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -121,7 +123,7 @@ function doPost(e) {
       for (var j = 0; j < clients.length; j++) {
         var client = clients[j];
         var isInadimplente = client.inadimplente === true;
-        sheet.appendRow([nextId, client.clientName, client.dateInclusion, client.avgKw, client.status, client.dateSaida || "", isInadimplente]);
+        sheet.appendRow([nextId, client.clientName, client.dateInclusion, client.avgKw, client.status, client.dateSaida || "", isInadimplente, client.tipoCliente || "Pessoa Física", client.saldo || 0]);
         nextId++;
       }
       
@@ -140,6 +142,26 @@ function doPost(e) {
         }
       }
       return ContentService.createTextOutput(JSON.stringify({success: false, message: "ID não encontrado"})).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'edit_client') {
+      var data = sheet.getDataRange().getValues();
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0] == body.id) {
+          var rowIndex = i + 1;
+          sheet.getRange(rowIndex, 2, 1, 8).setValues([[
+             body.clientName, 
+             body.dateInclusion, 
+             body.avgKw, 
+             body.status, 
+             body.dateSaida || "", 
+             body.inadimplente === true,
+             body.tipoCliente || "Pessoa Física",
+             body.saldo || 0
+          ]]);
+          return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
     }
     
     if (action === 'delete') {

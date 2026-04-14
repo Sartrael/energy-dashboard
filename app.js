@@ -7,13 +7,13 @@ const createReactiveState = (initialState, renderCallback) => {
     set(target, property, value) {
       target[property] = value;
       if (property === 'periods') {
-        localStorage.setItem('coenergy_data', JSON.stringify(value));
+        localStorage.setItem('coenergy_data_v2', JSON.stringify(value));
       }
       if (property === 'usinas') {
-        localStorage.setItem('coenergy_usinas_data', JSON.stringify(value));
+        localStorage.setItem('coenergy_usinas_data_v2', JSON.stringify(value));
       }
       if (property === 'creditos') {
-        localStorage.setItem('coenergy_creditos_data', JSON.stringify(value));
+        localStorage.setItem('coenergy_creditos_data_v2', JSON.stringify(value));
       }
       setTimeout(renderCallback, 0);
       return true;
@@ -28,10 +28,45 @@ const normalizeString = (str) => {
 
 // Application State
 const state = createReactiveState({
-  periods: [],
-  usinas: [],
-  creditos: [],
-  activePeriodId: null,
+  periods: [
+    {
+      id: "p-2026-0",
+      name: "Janeiro de 2026",
+      month: "Janeiro",
+      year: 2026,
+      records: [
+        { id: "1", clientName: "Supermercado Alfa", dateInclusion: "2026-01-05", avgKw: 1450.5, status: "Ativos", tipoCliente: "Pessoa Jurídica", saldo: 2450.00, inadimplente: false, contasAtrasadas: [] },
+        { id: "2", clientName: "Indústria Ômega", dateInclusion: "2026-01-12", avgKw: 850.0, status: "Em espera", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: true, contasAtrasadas: [] }
+      ]
+    },
+    {
+      id: "p-2026-1",
+      name: "Fevereiro de 2026",
+      month: "Fevereiro",
+      year: 2026,
+      records: [
+        { id: "3", clientName: "Posto de Combustível Beta", dateInclusion: "2026-02-01", avgKw: 2100.2, status: "Ativos", tipoCliente: "Pessoa Jurídica", saldo: 3100.50, inadimplente: false, contasAtrasadas: [] },
+        { id: "4", clientName: "Hotel Delta", dateInclusion: "2026-02-15", avgKw: 560.8, status: "Ativos", tipoCliente: "Pessoa Física", saldo: 140.20, inadimplente: false, contasAtrasadas: [] },
+        { id: "5", clientName: "Escola Epsilon", dateInclusion: "2026-02-28", avgKw: 1200.0, status: "Saíram", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: false, contasAtrasadas: [] }
+      ]
+    }
+  ],
+  usinas: [
+    { 
+      id: "u-1", 
+      name: "Usina Solar Norte",
+      records: [
+        { id: "r-1", month: "2026-01", expected: 1500, comp: 1450 },
+        { id: "r-2", month: "2026-02", expected: 1600, comp: 1580 }
+      ]
+    },
+    { id: "u-2", name: "Usina Solar Sul", records: [] }
+  ],
+  creditos: [
+    { id: "c-1", date: "2026-01", kwTotal: 5000, historico: "Saldo Inicial" },
+    { id: "c-2", date: "2026-02", kwTotal: 4800, historico: "Ajuste mensal" }
+  ],
+  activePeriodId: "p-2026-1",
   activeView: 'dashboard-view',
   isCloudSynced: false,
   inlineEditingRecordId: null,
@@ -43,6 +78,7 @@ const state = createReactiveState({
   updateUsinasUI();
   updateOrganizacaoUI();
   updateCreditosUI();
+  updateInadimplenciaUI();
 });
 
 // Chart instances
@@ -53,6 +89,7 @@ let saidasChartInstance = null;
 let newClientsChartInstance = null;
 let inadimplenciaChartInstance = null;
 let tipoClienteChartInstance = null;
+let tipoClienteKwChartInstance = null;
 let creditosChartInstance = null;
 window.usinaChartInstances = {};
 window.usinasInEditMode = new Set();
@@ -69,17 +106,18 @@ document.addEventListener('DOMContentLoaded', () => {
   setupOrganizacaoFilters();
   setupGlobalSearch();
   setupCreditosForm();
+  setupInadimplenciaForm();
 
   // Se já tiver dados no localStorage, renderiza imediatamente a tela
-  const localData = localStorage.getItem('coenergy_data');
+  const localData = localStorage.getItem('coenergy_data_v2');
   if (localData) {
     state.periods = JSON.parse(localData);
   }
-  const localUsinas = localStorage.getItem('coenergy_usinas_data');
+  const localUsinas = localStorage.getItem('coenergy_usinas_data_v2');
   if (localUsinas) {
     state.usinas = JSON.parse(localUsinas);
   }
-  const localCreditos = localStorage.getItem('coenergy_creditos_data');
+  const localCreditos = localStorage.getItem('coenergy_creditos_data_v2');
   if (localCreditos) {
     state.creditos = JSON.parse(localCreditos);
   }
@@ -88,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDashboardUI();
     updateDataEntryUI();
     updateUsinasUI();
+    updateInadimplenciaUI();
   }
 
   // Tentar buscar do Google Sheets (Sincronização Nuvem Inicial)
@@ -168,8 +207,10 @@ function processSheetsData(fetchedRows) {
       avgKw: parseFloat(row.avgKw) || 0,
       status: row.status,
       tipoCliente: row.tipoCliente || 'Pessoa Física',
+      saldo: parseFloat(row.saldo) || 0,
       dateSaida: row.dateSaida || '',
-      inadimplente: row.inadimplente || false
+      inadimplente: row.inadimplente || false,
+      contasAtrasadas: row.contasAtrasadas || []
     });
   });
 
@@ -262,6 +303,11 @@ function setupNavigation() {
         if (barChartInstance) barChartInstance.resize();
         if (lineChartInstance) lineChartInstance.resize();
         if (statusChartInstance) statusChartInstance.resize();
+        if (saidasChartInstance) saidasChartInstance.resize();
+        if (newClientsChartInstance) newClientsChartInstance.resize();
+        if (inadimplenciaChartInstance) inadimplenciaChartInstance.resize();
+        if (tipoClienteChartInstance) tipoClienteChartInstance.resize();
+        if (tipoClienteKwChartInstance) tipoClienteKwChartInstance.resize();
       }
       if (targetId === 'creditos-view') {
         if (creditosChartInstance) creditosChartInstance.resize();
@@ -325,13 +371,14 @@ function setupLoteEntry() {
       if (!row) continue;
 
       const cols = row.split('\t');
-      if (cols.length >= 5) {
+      if (cols.length >= 6) {
         window.loteParsedData.push({
           clientName: cols[0].trim(),
-          avgKw: parseFloat(cols[1].replace(',', '.').trim()) || 0,
-          dateInclusion: cols[2].trim(), // YYYY-MM-DD or DD/MM/YYYY
-          status: cols[3].trim(),
-          tipoCliente: cols[4].trim(),
+          avgKw: parseFloat(cols[1].replace(/\./g, '').replace(',', '.').trim()) || 0,
+          saldo: parseFloat((cols[2] || '0').replace(/\./g, '').replace(',', '.').trim()) || 0,
+          dateInclusion: cols[3].trim(), // YYYY-MM-DD or DD/MM/YYYY
+          status: cols[4].trim(),
+          tipoCliente: cols[5].trim(),
           inadimplente: false,
           dateSaida: ''
         });
@@ -394,16 +441,18 @@ function setupLoteEntry() {
 
       record.id = `r-${timestamp}-${index}`;
 
-      tempState[periodIndex].records.push({
-        id: record.id,
-        clientName: record.clientName,
-        dateInclusion: record.dateInclusionFormatted,
-        avgKw: record.avgKw,
-        status: record.status,
-        tipoCliente: record.tipoCliente,
-        dateSaida: record.dateSaida,
-        inadimplente: record.inadimplente
-      });
+        tempState[periodIndex].records.push({
+          id: record.id,
+          clientName: record.clientName,
+          dateInclusion: record.dateInclusionFormatted,
+          avgKw: record.avgKw,
+          status: record.status,
+          tipoCliente: record.tipoCliente,
+          saldo: record.saldo,
+          dateSaida: record.dateSaida,
+          inadimplente: record.inadimplente,
+          contasAtrasadas: []
+        });
     });
 
     state.periods = tempState;
@@ -449,6 +498,7 @@ function setupLoteEntry() {
       tr.innerHTML = `
         <td><strong>${record.clientName}</strong></td>
         <td><strong>${record.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
+        <td><strong>${record.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
         <td>${displayDate}</td>
         <td><span class="status-badge ${badgeClass}" style="font-size: 0.85rem; padding: 4px 10px;">${record.status}</span></td>
         <td><span style="font-size: 0.95rem; color: var(--text-muted);">${record.tipoCliente}</span></td>
@@ -522,6 +572,7 @@ function setupForms() {
     const avgKw = parseFloat(document.getElementById('avgKw').value);
     const clientStatus = document.getElementById('clientStatus').value;
     const tipoCliente = document.getElementById('tipoCliente').value;
+    const clientSaldo = parseFloat(document.getElementById('clientSaldo').value) || 0;
     const dateSaida = document.getElementById('dateSaida') ? document.getElementById('dateSaida').value : '';
 
     const dateParts = dateInclusion.split('-');
@@ -566,7 +617,8 @@ function setupForms() {
       status: clientStatus,
       tipoCliente,
       dateSaida,
-      inadimplente: previousInadimplente
+      inadimplente: previousInadimplente,
+      contasAtrasadas: []
     };
 
     tempState[periodIndex].records.push(newRecord);
@@ -582,6 +634,7 @@ function setupForms() {
         avgKw,
         status: clientStatus,
         tipoCliente,
+        saldo: clientSaldo,
         dateSaida,
         inadimplente: previousInadimplente
       };
@@ -688,6 +741,7 @@ window.saveInlineEdit = async function (periodId, recordId) {
   const newDate = row.querySelector('.edit-date').value;
   const newStatus = row.querySelector('.edit-status').value;
   const newTipo = row.querySelector('.edit-tipo').value;
+  const newSaldo = parseFloat(row.querySelector('.edit-saldo').value) || 0;
 
   const tempState = [...state.periods];
   const periodIndex = tempState.findIndex(p => p.id === periodId);
@@ -700,6 +754,7 @@ window.saveInlineEdit = async function (periodId, recordId) {
       record.dateInclusion = newDate;
       record.status = newStatus;
       record.tipoCliente = newTipo;
+      record.saldo = newSaldo;
 
       // Handle Data de Saída logic if status changed
       if (newStatus !== 'Saíram') {
@@ -718,6 +773,7 @@ window.saveInlineEdit = async function (periodId, recordId) {
           avgKw: newAvgKw,
           status: newStatus,
           tipoCliente: newTipo,
+          saldo: newSaldo,
           dateSaida: record.dateSaida,
           inadimplente: record.inadimplente
         });
@@ -814,6 +870,7 @@ window.editClient = function (periodId, recordId) {
 
   document.getElementById('clientStatus').value = record.status;
   document.getElementById('tipoCliente').value = record.tipoCliente;
+  document.getElementById('clientSaldo').value = record.saldo;
 
   if (record.status === 'Saíram') {
     document.getElementById('dataSaidaGroup').style.display = 'block';
@@ -1001,6 +1058,7 @@ function renderRecordsTable(records, tbody) {
             <option value="Saíram" ${record.status === 'Saíram' ? 'selected' : ''}>Saíram</option>
           </select>
         </td>
+        <td><input type="number" step="0.01" class="edit-saldo" value="${record.saldo}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange); text-align: center;"></td>
         <td>-</td>
         <td style="display: flex; gap: 8px; justify-content: center; padding: 16px;">
           <button class="btn-icon text-orange" onclick="saveInlineEdit('${record.periodId}', '${record.id}')" title="Salvar Alterações">
@@ -1021,6 +1079,7 @@ function renderRecordsTable(records, tbody) {
         <td style="font-size: 1.05rem;">${formattedDate}</td>
         <td style="font-size: 1.05rem;"><strong style="font-size: 1.15rem;">${record.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
         <td><span class="status-badge ${badgeClass}" style="font-size: 0.95rem; padding: 6px 14px;">${record.status}</span></td>
+        <td style="font-size: 1.05rem;" data-numeric="true"><strong>${record.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
         <td style="font-size: 1.05rem;">${record.dateSaida ? record.dateSaida.split('-').reverse().join('/') : '-'}</td>
         <td style="display: flex; flex-direction: column; gap: 8px; justify-content: center; align-items: center; text-align: center; min-width: 160px; padding: 16px;">
           <button class="action-btn-stacked" onclick="startInlineEdit('${record.periodId}', '${record.id}')" title="Editar este registro (Inline)">
@@ -1061,25 +1120,26 @@ function updateDashboardUI() {
   let cumulativeExits = 0;
   const lineNetData = [];
 
-  state.periods.forEach(p => {
+  (state.periods || []).forEach(p => {
     let periodTotalKw = 0;
-    let periodClientsCount = p.records.length;
+    let periodClientsCount = p.records?.length || 0;
     let monthSaidas = 0;
 
-    p.records.forEach(r => {
-      periodTotalKw += r.avgKw;
-      if (r.status === 'Ativos') { countAtivos++; kwAtivos += r.avgKw; }
-      else if (r.status === 'Em espera') { countEspera++; kwEspera += r.avgKw; }
-      else if (r.status === 'Saíram') { countSairam++; monthSaidas++; kwSairam += r.avgKw; }
+    (p.records || []).forEach(r => {
+      let rKw = r?.avgKw || 0;
+      periodTotalKw += rKw;
+      if (r?.status === 'Ativos') { countAtivos++; kwAtivos += rKw; }
+      else if (r?.status === 'Em espera') { countEspera++; kwEspera += rKw; }
+      else if (r?.status === 'Saíram') { countSairam++; monthSaidas++; kwSairam += rKw; }
 
-      if (r.inadimplente) {
+      if (r?.inadimplente) {
         countInadimplentes++;
-        kwInadimplentes += r.avgKw;
-        if (r.status === 'Ativos') countInadimplentesAtivos++;
+        kwInadimplentes += rKw;
+        if (r?.status === 'Ativos') countInadimplentesAtivos++;
       }
 
-      if (r.tipoCliente === 'Pessoa Jurídica') { countPJ++; kwPJ += r.avgKw; }
-      else { countPF++; kwPF += r.avgKw; }
+      if (r?.tipoCliente === 'Pessoa Jurídica') { countPJ++; kwPJ += rKw; }
+      else { countPF++; kwPF += rKw; }
     });
 
     totalKw += periodTotalKw;
@@ -1513,7 +1573,7 @@ function renderUsinaCharts(usina, canvasIdSuffix) {
   }
 }
 
-function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, cSairam, saidasData, cInadimplentesAtivos, totalClients, countPF, countPJ, kwPF, kwPJ, totalKwTipo, newClientsData) {
+function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, cSairam, saidasData, cInadimplentesAtivos, totalClients, countPF, countPJ, kwPF, kwPJ, totalKwAll, newClientsData) {
   Chart.defaults.color = '#6b7280';
   Chart.defaults.font.family = "'Inter', sans-serif";
   Chart.defaults.scale.grid.color = '#e5e7eb';
@@ -1571,23 +1631,33 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '65%',
-      layout: { padding: { top: 75, bottom: 85, left: 75, right: 75 } },
+      cutout: '70%',
+      layout: { padding: 40 },
       plugins: {
         legend: { display: false },
         datalabels: {
           anchor: 'end',
           align: 'end',
-          offset: 15,
-          color: '#374151',
-          font: { weight: 'bold', family: "'Inter', sans-serif" },
+          offset: 2,
+          textAlign: 'center',
+          color: '#111827',
+          font: { weight: 'bold', family: "'Inter', sans-serif", size: 11 },
           formatter: (value, ctx) => {
             let sum = 0;
             let dataArr = ctx.chart.data.datasets[0].data;
             dataArr.forEach(data => { sum += data; });
             if (sum === 0 || value === 0) return '';
             let percentage = (value * 100 / sum).toFixed(1) + "%";
-            return `${value} (${percentage})`;
+            
+            const labelStr = ctx.chart.data.labels[ctx.dataIndex];
+            if (labelStr === 'Ativos') {
+              return [value.toString(), value === 1 ? "ativo" : "ativos", `(${percentage})`];
+            } else if (labelStr === 'Em espera') {
+              return [value.toString(), "em", "espera", `(${percentage})`];
+            } else if (labelStr === 'Saíram') {
+              return [value.toString(), value === 1 ? "saiu" : "saíram", `(${percentage})`];
+            }
+            return '';
           }
         }
       }
@@ -1600,30 +1670,29 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
   const pctEspera = totalClients > 0 ? ((cEspera / totalClients) * 100).toFixed(1) : 0;
   const pctSairam = totalClients > 0 ? ((cSairam / totalClients) * 100).toFixed(1) : 0;
 
-  const statusContainer = document.getElementById('status-percentages');
-  if (statusContainer) {
-    statusContainer.innerHTML = `
-      <div class="percent-badge ativos">
-        <span class="percent-value">${cAtivos} (${pctAtivos}%)</span>
-        <span class="percent-label"><span class="percent-dot" style="background-color: #10b981;"></span>Ativos</span>
-      </div>
-      <div class="percent-badge espera">
-        <span class="percent-value">${cEspera} (${pctEspera}%)</span>
-        <span class="percent-label"><span class="percent-dot" style="background-color: #f59e0b;"></span>Em Espera</span>
-      </div>
-      <div class="percent-badge sairam">
-        <span class="percent-value" style="color: #ef4444;">${cSairam} (${pctSairam}%)</span>
-        <span class="percent-label"><span class="percent-dot" style="background-color: #ef4444;"></span>Saíram</span>
-      </div>
-    `;
-  }
+    const statusContainer = document.getElementById('status-percentages');
+    if (statusContainer) {
+      statusContainer.innerHTML = `
+        <div class="percent-badge ativos">
+          <span class="percent-value">${cAtivos} (${pctAtivos}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #10b981;"></span>Ativos</span>
+        </div>
+        <div class="percent-badge espera">
+          <span class="percent-value">${cEspera} (${pctEspera}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #f59e0b;"></span>Em Espera</span>
+        </div>
+        <div class="percent-badge sairam">
+          <span class="percent-value" style="color: #ef4444;">${cSairam} (${pctSairam}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #ef4444;"></span>Saíram</span>
+        </div>
+      `;
+    }
 
   // INADIMPLENCIA CHART
   const inadCtx = document.getElementById('inadimplenciaChart');
   if (inadCtx) {
     if (inadimplenciaChartInstance) inadimplenciaChartInstance.destroy();
 
-    // Explicit percentage formatting using Active Clients only vs Defaulters that are active
     const emDia = cAtivos - cInadimplentesAtivos;
     const taxaInadimplencia = cAtivos > 0 ? ((cInadimplentesAtivos / cAtivos) * 100).toFixed(1) : 0;
 
@@ -1641,23 +1710,30 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '65%',
-        layout: { padding: { top: 75, bottom: 85, left: 75, right: 75 } },
+        cutout: '70%',
+        layout: { padding: 40 },
         plugins: {
           legend: { display: false },
           datalabels: {
             anchor: 'end',
             align: 'end',
-            offset: 35,
-            color: '#374151',
-            font: { weight: 'bold', family: "'Inter', sans-serif" },
+            offset: 2,
+            textAlign: 'center',
+            color: '#111827',
+            font: { weight: 'bold', family: "'Inter', sans-serif", size: 11 },
             formatter: (value, ctx) => {
               let sum = 0;
               let dataArr = ctx.chart.data.datasets[0].data;
               dataArr.forEach(data => { sum += data; });
               if (sum === 0 || value === 0) return '';
               let percentage = (value * 100 / sum).toFixed(1) + "%";
-              return `${value} (${percentage})`;
+              
+              const labelStr = ctx.chart.data.labels[ctx.dataIndex];
+              if (labelStr === 'Em dia (Ativos)') {
+                return [value.toString(), "em dia", `(${percentage})`];
+              } else {
+                return [value.toString(), value === 1 ? "inadimplente" : "inadimplentes", `(${percentage})`];
+              }
             }
           }
         }
@@ -1822,18 +1898,16 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
     plugins: [ChartDataLabels]
   });
 
-  // TIPO CLIENTE CHART
+  // TIPO CLIENTE CHART (QUANTIDADE - PF/PJ)
   const tipoCtx = document.getElementById('tipoClienteChart');
   if (tipoCtx) {
     if (tipoClienteChartInstance) tipoClienteChartInstance.destroy();
-
     tipoClienteChartInstance = new Chart(tipoCtx.getContext('2d'), {
       type: 'doughnut',
       data: {
         labels: ['Pessoa Física', 'Pessoa Jurídica'],
         datasets: [{
           data: [countPF, countPJ],
-          kwData: [kwPF, kwPJ], // Store kW data in the dataset for tooltip access
           backgroundColor: ['#f97316', '#4b5563'],
           borderWidth: 2,
           borderColor: '#ffffff'
@@ -1842,65 +1916,28 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '65%',
-        layout: { padding: { top: 95, bottom: 95, left: 100, right: 100 } },
+        cutout: '70%',
+        layout: { padding: 40 },
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1f2937',
-            padding: 12,
-            cornerRadius: 8,
-            titleFont: { size: 14, weight: 'bold' },
-            bodyFont: { size: 13 },
-            callbacks: {
-              label: function (context) {
-                const label = context.label || '';
-                const value = context.raw;
-                const kwValue = context.dataset.kwData[context.dataIndex];
-                
-                let sumCount = 0;
-                context.chart.data.datasets[0].data.forEach(d => sumCount += d);
-                let sumKw = 0;
-                context.chart.data.datasets[0].kwData.forEach(d => sumKw += d);
-                
-                const pctCount = sumCount > 0 ? (value * 100 / sumCount).toFixed(1) : 0;
-                const pctKw = sumKw > 0 ? (kwValue * 100 / sumKw).toFixed(1) : 0;
-                
-                return [
-                  `Clientes: ${value} (${pctCount}%)`,
-                  `Volume: ${kwValue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW (${pctKw}%)`
-                ];
-              }
-            }
-          },
           datalabels: {
             anchor: 'end',
-            align: (ctx) => ctx.dataIndex === 0 ? 'bottom' : 'top',
-            offset: 45,
-            color: '#374151',
+            align: 'end',
+            offset: 2,
             textAlign: 'center',
-            padding: 6,
+            color: '#111827',
             font: { weight: 'bold', family: "'Inter', sans-serif", size: 11 },
             formatter: (value, ctx) => {
-              const kwValue = ctx.dataset.kwData[ctx.dataIndex];
-              let sumCount = 0;
-              ctx.chart.data.datasets[0].data.forEach(d => sumCount += d);
-              let sumKw = 0;
-              ctx.chart.data.datasets[0].kwData.forEach(d => sumKw += d);
-
-              if (sumCount === 0 || value === 0) return '';
+              const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+              if (sum === 0 || value === 0) return '';
+              const pct = (value * 100 / sum).toFixed(1) + "%";
               
-              const pctCount = (value * 100 / sumCount).toFixed(1) + "%";
-              const pctKw = sumKw > 0 ? (kwValue * 100 / sumKw).toFixed(1) + "%" : "0%";
-              
-              const label = ctx.chart.data.labels[ctx.dataIndex];
-              
-              // Multi-line array for Chart.js datalabels
-              return [
-                label,
-                `Qtd: ${value} (${pctCount})`,
-                `Vol: ${kwValue.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kW (${pctKw})`
-              ];
+              const labelStr = ctx.chart.data.labels[ctx.dataIndex];
+              if (labelStr === 'Pessoa Física') {
+                return [value.toString(), value === 1 ? "pessoa" : "pessoas", value === 1 ? "física" : "físicas", `(${pct})`];
+              } else {
+                return [value.toString(), value === 1 ? "pessoa" : "pessoas", value === 1 ? "jurídica" : "jurídicas", `(${pct})`];
+              }
             }
           }
         }
@@ -1913,13 +1950,77 @@ function renderCharts(labels, barData, lineData, lineNetData, cAtivos, cEspera, 
       const pctPF = totalClients > 0 ? ((countPF / totalClients) * 100).toFixed(1) : 0;
       const pctPJ = totalClients > 0 ? ((countPJ / totalClients) * 100).toFixed(1) : 0;
       tipoContainer.innerHTML = `
-        <div class="percent-badge" style="border-left: 4px solid #f97316;">
-          <span class="percent-value" style="color: #f97316;">${countPF} (${pctPF}%)</span>
-          <span class="percent-label"><span class="percent-dot" style="background-color: #f97316;"></span>Pessoa Física</span>
+        <div class="percent-badge pf">
+          <span class="percent-value">${countPF} (${pctPF}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #f97316;"></span>PF</span>
         </div>
-        <div class="percent-badge" style="border-left: 4px solid #4b5563;">
-          <span class="percent-value" style="color: #4b5563;">${countPJ} (${pctPJ}%)</span>
-          <span class="percent-label"><span class="percent-dot" style="background-color: #4b5563;"></span>Pessoa Jurídica</span>
+        <div class="percent-badge pj">
+          <span class="percent-value">${countPJ} (${pctPJ}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #4b5563;"></span>PJ</span>
+        </div>
+      `;
+    }
+  }
+
+  // TIPO CLIENTE KW CHART (VOLUME - PF/PJ)
+  const tipoKwCtx = document.getElementById('tipoClienteKwChart');
+  if (tipoKwCtx) {
+    if (tipoClienteKwChartInstance) tipoClienteKwChartInstance.destroy();
+    tipoClienteKwChartInstance = new Chart(tipoKwCtx.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Volume PF', 'Volume PJ'],
+        datasets: [{
+          data: [kwPF, kwPJ],
+          backgroundColor: ['#f97316', '#4b5563'],
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        layout: { padding: 40 },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            anchor: 'end',
+            align: 'end',
+            offset: 2,
+            textAlign: 'center',
+            color: '#111827',
+            font: { weight: 'bold', family: "'Inter', sans-serif", size: 10 },
+            formatter: (value, ctx) => {
+              const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+              if (sum === 0 || value === 0) return '';
+              const pct = (value * 100 / sum).toFixed(1) + "%";
+              
+              const labelStr = ctx.chart.data.labels[ctx.dataIndex];
+              if (labelStr === 'Volume PF') {
+                return [`${value.toFixed(0)} kW`, "(PF)", `(${pct})`];
+              } else {
+                return [`${value.toFixed(0)} kW`, "(PJ)", `(${pct})`];
+              }
+            }
+          }
+        }
+      },
+      plugins: [ChartDataLabels]
+    });
+
+    const tipoKwContainer = document.getElementById('tipoClienteKw-percentages');
+    if (tipoKwContainer) {
+      const pctKwPF = totalKwAll > 0 ? ((kwPF / totalKwAll) * 100).toFixed(1) : 0;
+      const pctKwPJ = totalKwAll > 0 ? ((kwPJ / totalKwAll) * 100).toFixed(1) : 0;
+      tipoKwContainer.innerHTML = `
+        <div class="percent-badge pf">
+          <span class="percent-value">${kwPF.toFixed(0)} (${pctKwPF}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #f97316;"></span>Vol. PF</span>
+        </div>
+        <div class="percent-badge pj">
+          <span class="percent-value">${kwPJ.toFixed(0)} (${pctKwPJ}%)</span>
+          <span class="percent-label"><span class="percent-dot" style="background-color: #4b5563;"></span>Vol. PJ</span>
         </div>
       `;
     }
@@ -1934,8 +2035,8 @@ function loadDemoData() {
       month: "Janeiro",
       year: 2026,
       records: [
-        { id: "1", clientName: "Supermercado Alfa", dateInclusion: "2026-01-05", avgKw: 1450.5, status: "Ativos", tipoCliente: "Pessoa Jurídica", inadimplente: false },
-        { id: "2", clientName: "Indústria Ômega", dateInclusion: "2026-01-12", avgKw: 850.0, status: "Em espera", tipoCliente: "Pessoa Jurídica", inadimplente: true }
+        { id: "1", clientName: "Supermercado Alfa", dateInclusion: "2026-01-05", avgKw: 1450.5, status: "Ativos", tipoCliente: "Pessoa Jurídica", saldo: 2450.00, inadimplente: false, contasAtrasadas: [] },
+        { id: "2", clientName: "Indústria Ômega", dateInclusion: "2026-01-12", avgKw: 850.0, status: "Em espera", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: true, contasAtrasadas: [] }
       ]
     },
     {
@@ -1944,12 +2045,22 @@ function loadDemoData() {
       month: "Fevereiro",
       year: 2026,
       records: [
-        { id: "3", clientName: "Posto de Combustível Beta", dateInclusion: "2026-02-01", avgKw: 2100.2, status: "Ativos", tipoCliente: "Pessoa Jurídica", inadimplente: false },
-        { id: "4", clientName: "Hotel Delta", dateInclusion: "2026-02-15", avgKw: 560.8, status: "Ativos", tipoCliente: "Pessoa Física", inadimplente: false },
-        { id: "5", clientName: "Escola Epsilon", dateInclusion: "2026-02-28", avgKw: 1200.0, status: "Saíram", tipoCliente: "Pessoa Jurídica", inadimplente: false }
+        { id: "3", clientName: "Posto de Combustível Beta", dateInclusion: "2026-02-01", avgKw: 2100.2, status: "Ativos", tipoCliente: "Pessoa Jurídica", saldo: 3100.50, inadimplente: false, contasAtrasadas: [] },
+        { id: "4", clientName: "Hotel Delta", dateInclusion: "2026-02-15", avgKw: 560.8, status: "Ativos", tipoCliente: "Pessoa Física", saldo: 140.20, inadimplente: false, contasAtrasadas: [] },
+        { id: "5", clientName: "Escola Epsilon", dateInclusion: "2026-02-28", avgKw: 1200.0, status: "Saíram", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: false, contasAtrasadas: [] }
       ]
     }
   ];
+  
+  state.usinas = [
+    { id: "u-1", name: "Usina Solar Norte" },
+    { id: "u-2", name: "Usina Solar Sul" }
+  ];
+
+  state.creditos = [
+    { id: "c-1", date: "2026-01", kwTotal: 5000, historico: "Mês inicial" }
+  ];
+
   state.activePeriodId = "p-2026-1";
 }
 
@@ -2127,8 +2238,8 @@ function updateOrganizacaoUI() {
 
   // Flatten all records from all periods
   let allClients = [];
-  state.periods.forEach(p => {
-    p.records.forEach(r => {
+  (state.periods || []).forEach(p => {
+    (p.records || []).forEach(r => {
       allClients.push(r);
     });
   });
@@ -2154,9 +2265,15 @@ function updateOrganizacaoUI() {
   const percentage = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
   const isFiltered = kwMin > 0 || statusFilter !== 'Todos' || nameFilter !== '';
 
-  // Render Summary Banner
+  // Calculate Total Balance for filtered clients
+  const totalBalance = filtered.reduce((sum, c) => sum + (c.saldo || 0), 0);
+
+  const footerContainer = document.getElementById('organizacao-footer-container');
+
+  // Render Summary Banners (Existing Results + New Balance Card)
   if (totalCount === 0) {
     summaryContainer.innerHTML = '';
+    if (footerContainer) footerContainer.innerHTML = '';
   } else {
     summaryContainer.innerHTML = `
       <div class="summary-banner">
@@ -2172,6 +2289,26 @@ function updateOrganizacaoUI() {
         </div>
       </div>
     `;
+
+    if (footerContainer) {
+      footerContainer.innerHTML = `
+        <div class="summary-banner balance-banner" style="margin-top: 0; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="balance-card-icon">
+              <i class="fa-solid fa-money-bill-transfer"></i>
+            </div>
+            <div>
+              <div class="balance-card-title">Saldo Total Acumulado</div>
+              <div class="balance-card-value" style="color: #111827;">${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW</div>
+            </div>
+          </div>
+          <div class="metric-detail" style="color: #374151; font-weight: 500;">
+            <i class="fa-solid fa-circle-info" style="color: #10b981; margin-right: 4px;"></i>
+            Soma de todos os saldos no filtro atual
+          </div>
+        </div>
+      `;
+    }
   }
 
   tbody.innerHTML = '';
@@ -2198,6 +2335,7 @@ function updateOrganizacaoUI() {
         <td style="text-align: center;"><strong>${c.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
         <td style="text-align: center;">${formattedDate}</td>
         <td style="text-align: center;"><span class="status-badge ${badgeClass}">${c.status}</span></td>
+        <td style="text-align: center;" data-numeric="true"><strong>${c.saldo ? c.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0'}</strong> kW</td>
       `;
       tbody.appendChild(tr);
     });
@@ -2467,6 +2605,196 @@ window.deleteCredito = async function (id) {
 
     if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
       await postToGoogleSheets({ action: 'delete_credito', id });
+    }
+  }
+};
+
+// --- Inadimplencia Module Logic ---
+function setupInadimplenciaForm() {
+  const form = document.getElementById('inadimplencia-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const select = document.getElementById('inadCliSelect');
+    if (!select.value) return;
+
+    const [periodId, recordId] = select.value.split('|');
+    const dataEmissao = document.getElementById('inadData').value;
+    const valor = parseFloat(document.getElementById('inadValor').value) || 0;
+
+    const tempState = [...state.periods];
+    const pIdx = tempState.findIndex(p => p.id === periodId);
+    if (pIdx !== -1) {
+      const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
+      if (rIdx !== -1) {
+        const c = tempState[pIdx].records[rIdx];
+        if (!c.contasAtrasadas) c.contasAtrasadas = [];
+        c.contasAtrasadas.push({
+          id: `conta-${Date.now()}`,
+          dataEmissao,
+          valor
+        });
+        state.periods = tempState;
+
+        if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
+          await postToGoogleSheets({ action: 'add_conta_atrasada', periodId, recordId, dataEmissao, valor });
+        }
+      }
+    }
+
+    document.getElementById('inadData').value = '';
+    document.getElementById('inadValor').value = '';
+    select.focus();
+  });
+}
+
+function updateInadimplenciaUI() {
+  const select = document.getElementById('inadCliSelect');
+  const grid = document.getElementById('inadimplencia-cards-grid');
+  const noRecords = document.getElementById('no-inadimplencia-records');
+  if (!select || !grid) return;
+
+  const inadimplentes = [];
+  (state.periods || []).forEach(p => {
+    (p.records || []).forEach(r => {
+      if (r.inadimplente === true) inadimplentes.push({ periodId: p.id, record: r });
+    });
+  });
+
+  const selectCurrentVal = select.value;
+  select.innerHTML = '<option value="" disabled selected>Selecione um cliente da lista...</option>';
+  inadimplentes.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = `${item.periodId}|${item.record.id}`;
+    opt.textContent = item.record.clientName;
+    select.appendChild(opt);
+  });
+  if (selectCurrentVal) select.value = selectCurrentVal;
+
+  const defaultingClients = inadimplentes;
+
+  grid.innerHTML = '';
+  if (defaultingClients.length === 0) {
+    grid.style.display = 'none';
+    if(noRecords) noRecords.style.display = 'flex';
+  } else {
+    grid.style.display = 'grid';
+    if(noRecords) noRecords.style.display = 'none';
+
+    defaultingClients.forEach(item => {
+      const { periodId, record } = item;
+      const hasBills = record.contasAtrasadas && record.contasAtrasadas.length > 0;
+      const totalDevido = hasBills ? record.contasAtrasadas.reduce((sum, conta) => sum + conta.valor, 0) : 0;
+
+      const card = document.createElement('div');
+      card.className = 'white-panel shadow';
+      card.style.padding = '20px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+
+      let bodyContent = '';
+      if (!hasBills) {
+        bodyContent = `
+          <div style="padding: 24px; text-align: center; color: #6b7280; background: #f9fafb; border-radius: 8px; font-size: 0.9rem;">
+            <i class="fa-solid fa-file-invoice" style="display: block; font-size: 1.5rem; margin-bottom: 8px; opacity: 0.5;"></i>
+            Nenhuma cobrança específica cadastrada.
+          </div>
+        `;
+      } else {
+        let rowsHtml = record.contasAtrasadas.map(conta => {
+          let displayDate = conta.dataEmissao;
+          if (displayDate && displayDate.includes('-')) {
+            displayDate = displayDate.split('-').reverse().join('/');
+          }
+           return `
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${displayDate || '-'}</td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">R$ ${conta.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                <button class="btn-icon" onclick="editContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Editar" style="color: var(--orange); margin-right: 8px;">
+                  <i class="fa-solid fa-pencil"></i>
+                </button>
+                <button class="btn-icon text-red" onclick="deleteContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Excluir">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        bodyContent = `
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+            <thead>
+              <tr>
+                <th style="padding-bottom: 8px; text-align: left; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Data Emissão</th>
+                <th style="padding-bottom: 8px; text-align: left; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Valor</th>
+                <th style="padding-bottom: 8px; text-align: right; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        `;
+      }
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
+          <h4 style="margin: 0; color: #1f2937; font-size: 1.1rem;">${record.clientName}</h4>
+          <div style="text-align: right;">
+            <span style="font-size: 0.8rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Total Devido</span>
+            <div style="color: #ef4444; font-weight: 700; font-size: 1.25rem;">R$ ${totalDevido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+        </div>
+        ${bodyContent}
+      `;
+      grid.appendChild(card);
+    });
+  }
+}
+
+window.deleteContaAtrasada = async function(periodId, recordId, contaId) {
+  if (confirm("Deseja realmente excluir esta conta atrasada?")) {
+    const tempState = [...state.periods];
+    const pIdx = tempState.findIndex(p => p.id === periodId);
+    if (pIdx > -1) {
+      const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
+      if (rIdx > -1) {
+        tempState[pIdx].records[rIdx].contasAtrasadas = tempState[pIdx].records[rIdx].contasAtrasadas.filter(c => c.id !== contaId);
+        state.periods = tempState;
+        if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
+          await postToGoogleSheets({ action: 'delete_conta_atrasada', periodId, recordId, contaId });
+        }
+      }
+    }
+  }
+};
+
+window.editContaAtrasada = async function(periodId, recordId, contaId) {
+  const tempState = [...state.periods];
+  const pIdx = tempState.findIndex(p => p.id === periodId);
+  if (pIdx > -1) {
+    const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
+    if (rIdx > -1) {
+       const conta = tempState[pIdx].records[rIdx].contasAtrasadas.find(c => c.id === contaId);
+       if (conta) {
+          const newData = prompt("Data de Emissão (AAAA-MM-DD ou DD/MM/AAAA):", conta.dataEmissao);
+          if (newData === null) return;
+          const newValStr = prompt("Valor (apenas números e ponto/vírgula):", conta.valor);
+          if (newValStr === null) return;
+          const newVal = parseFloat(newValStr.toString().replace(',', '.'));
+          if (!isNaN(newVal)) {
+            conta.dataEmissao = newData;
+            conta.valor = newVal;
+            state.periods = tempState;
+            if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
+               await postToGoogleSheets({ action: 'edit_conta_atrasada', periodId, recordId, contaId, dataEmissao: newData, valor: newVal });
+            }
+          } else {
+            alert("Valor numérico inválido!");
+          }
+       }
     }
   }
 };
