@@ -66,6 +66,8 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 
 /* Sidebar */
@@ -1064,6 +1066,12 @@ input:focus, select:focus {
   transition: transform 0.3s ease;
 }
 
+/* Modal largo — usado para listas de clientes KPI */
+.modal-content.modal-wide {
+  max-width: min(1200px, 92vw);
+  padding: 32px 36px;
+}
+
 .modal.active .modal-content {
   transform: scale(1);
 }
@@ -1088,7 +1096,13 @@ input:focus, select:focus {
   color: var(--text-main);
 }
 
-/* Loader Overlay */
+/* Tabela dentro de modal: scroll horizontal em telas menores */
+.modal-content .table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  border-radius: var(--radius-md);
+}
 .loader-overlay {
   position: fixed;
   top: 0;
@@ -1306,4 +1320,6 @@ input:focus, select:focus {
   overflow: hidden;
   border-radius: var(--radius-lg);
 }
+
+
 

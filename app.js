@@ -21,12 +21,25 @@ const createReactiveState = (initialState, renderCallback) => {
   });
 };
 
+// Global State Helper (⚛️ React-style)
+window.setPeriods = (updateFn) => {
+  const nextPeriods = typeof updateFn === 'function' ? updateFn(state.periods) : updateFn;
+  // Forçar nova referência de array (Shallow copy do resultado)
+  state.periods = [...nextPeriods];
+  
+  // Forçar renderização imediata de componentes críticos para evitar "stale UI"
+  if (typeof updateInadimplenciaUI === 'function') updateInadimplenciaUI();
+  if (typeof updateDashboardUI === 'function') updateDashboardUI();
+};
+
 // Utility: Normalize string for search (ignore accents and case)
 const normalizeString = (str) => {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 };
 
-// Application State
+window.isInitializing = false;
+
+// Application State (inclui dados demo inline para evitar race conditions na inicialização)
 const state = createReactiveState({
   periods: [
     {
@@ -36,7 +49,7 @@ const state = createReactiveState({
       year: 2026,
       records: [
         { id: "1", clientName: "Supermercado Alfa", dateInclusion: "2026-01-05", avgKw: 1450.5, status: "Ativos", tipoCliente: "Pessoa Jurídica", saldo: 2450.00, inadimplente: false, contasAtrasadas: [] },
-        { id: "2", clientName: "Indústria Ômega", dateInclusion: "2026-01-12", avgKw: 850.0, status: "Em espera", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: true, contasAtrasadas: [] }
+        { id: "2", clientName: "Indústria Ômega", dateInclusion: "2026-01-12", avgKw: 850.0, status: "Inadimplentes", tipoCliente: "Pessoa Jurídica", saldo: 0, inadimplente: true, contasAtrasadas: [{ id: "c-1", dataEmissao: "2026-01-15", valor: 1200.00 }] }
       ]
     },
     {
@@ -52,12 +65,12 @@ const state = createReactiveState({
     }
   ],
   usinas: [
-    { 
-      id: "u-1", 
+    {
+      id: "u-1",
       name: "Usina Solar Norte",
       records: [
-        { id: "r-1", month: "2026-01", expected: 1500, comp: 1450 },
-        { id: "r-2", month: "2026-02", expected: 1600, comp: 1580 }
+        { id: "r-1", month: "2026-01", esperada: 1500, compensada: 1450 },
+        { id: "r-2", month: "2026-02", esperada: 1600, compensada: 1580 }
       ]
     },
     { id: "u-2", name: "Usina Solar Sul", records: [] }
@@ -73,12 +86,26 @@ const state = createReactiveState({
   inlineEditingPeriodId: null,
   inlineEditingCreditoId: null
 }, () => {
-  updateDashboardUI();
-  updateDataEntryUI();
-  updateUsinasUI();
-  updateOrganizacaoUI();
-  updateCreditosUI();
-  updateInadimplenciaUI();
+  if (window.isInitializing) return;
+
+  // Fail-Safe: cada componente isolado para que falhas não interrompam os outros
+  const components = [
+    { name: 'Dashboard', fn: updateDashboardUI },
+    { name: 'DataEntry', fn: updateDataEntryUI },
+    { name: 'Usinas', fn: updateUsinasUI },
+    { name: 'Organizacao', fn: updateOrganizacaoUI },
+    { name: 'Creditos', fn: updateCreditosUI },
+    { name: 'Inadimplencia', fn: updateInadimplenciaUI },
+    { name: 'AlertaRateio', fn: updateAlertaRateioUI }
+  ];
+
+  components.forEach(comp => {
+    try {
+      if (typeof comp.fn === 'function') comp.fn();
+    } catch (err) {
+      console.error(`[Coenergy] Componente [${comp.name}] falhou ao renderizar:`, err);
+    }
+  });
 });
 
 // Chart instances
@@ -93,54 +120,80 @@ let tipoClienteKwChartInstance = null;
 let creditosChartInstance = null;
 window.usinaChartInstances = {};
 window.usinasInEditMode = new Set();
-Chart.register(ChartDataLabels);
+// Defer registration to init
+
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
-  setupNavigation();
-  setupModals();
-  setupForms();
-  setupLogoUpload();
-  setupInteractiveCards();
-  setupLoteEntry();
-  setupOrganizacaoFilters();
-  setupGlobalSearch();
-  setupCreditosForm();
-  setupInadimplenciaForm();
+  window.isInitializing = true;
 
-  // Se já tiver dados no localStorage, renderiza imediatamente a tela
-  const localData = localStorage.getItem('coenergy_data_v2');
-  if (localData) {
-    state.periods = JSON.parse(localData);
-  }
-  const localUsinas = localStorage.getItem('coenergy_usinas_data_v2');
-  if (localUsinas) {
-    state.usinas = JSON.parse(localUsinas);
-  }
-  const localCreditos = localStorage.getItem('coenergy_creditos_data_v2');
-  if (localCreditos) {
-    state.creditos = JSON.parse(localCreditos);
-  }
+  try {
+    // 1. Registrar plugin Chart.js de forma protegida
+    try {
+      if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+    } catch(e) { console.warn("ChartDataLabels não pôde ser registrado:", e); }
 
-  if (state.periods.length > 0 || state.usinas.length > 0) {
-    updateDashboardUI();
-    updateDataEntryUI();
-    updateUsinasUI();
-    updateInadimplenciaUI();
+    // 2. Setup de navegação e eventos (PRIORIDADE MÁXIMA)
+    setupNavigation();
+    try { setupModals(); } catch(e) { console.warn("setupModals:", e); }
+    try { setupForms(); } catch(e) { console.warn("setupForms:", e); }
+    try { setupLogoUpload(); } catch(e) { console.warn("setupLogoUpload:", e); }
+    try { setupInteractiveCards(); } catch(e) { console.warn("setupInteractiveCards:", e); }
+    try { setupLoteEntry(); } catch(e) { console.warn("setupLoteEntry:", e); }
+    try { setupOrganizacaoFilters(); } catch(e) { console.warn("setupOrganizacaoFilters:", e); }
+    try { setupGlobalSearch(); } catch(e) { console.warn("setupGlobalSearch:", e); }
+    try { setupCreditosForm(); } catch(e) { console.warn("setupCreditosForm:", e); }
+    try { setupInadimplenciaForm(); } catch(e) { console.warn("setupInadimplenciaForm:", e); }
+    try {
+      const alertSearch = document.getElementById('search-alerta-rateio');
+      if (alertSearch) alertSearch.addEventListener('input', () => updateAlertaRateioUI());
+    } catch(e) { console.warn("setupAlertaRateioSearch:", e); }
+
+    // 3. Restaurar dados do localStorage (se existir, sobrescreve o demo inline)
+    try {
+      const localData = localStorage.getItem('coenergy_data_v2');
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        if (Array.isArray(parsed) && parsed.length > 0) state.periods = parsed;
+      }
+    } catch(e) { console.warn("Restauração de periods falhou:", e); }
+
+    try {
+      const localUsinas = localStorage.getItem('coenergy_usinas_data_v2');
+      if (localUsinas) {
+        const parsed = JSON.parse(localUsinas);
+        if (Array.isArray(parsed) && parsed.length > 0) state.usinas = parsed;
+      }
+    } catch(e) { console.warn("Restauração de usinas falhou:", e); }
+
+    try {
+      const localCreditos = localStorage.getItem('coenergy_creditos_data_v2');
+      if (localCreditos) {
+        const parsed = JSON.parse(localCreditos);
+        if (Array.isArray(parsed) && parsed.length > 0) state.creditos = parsed;
+      }
+    } catch(e) { console.warn("Restauração de creditos falhou:", e); }
+
+    // 4. Liberar flag e renderizar
+    window.isInitializing = false;
+
+    // Render inicial com isolamento por componente
+    [updateDashboardUI, updateDataEntryUI, updateUsinasUI, updateInadimplenciaUI, updateOrganizacaoUI, updateCreditosUI, updateAlertaRateioUI].forEach(fn => {
+      try { if (typeof fn === 'function') fn(); }
+      catch(e) { console.error("Erro no render inicial:", e); }
+    });
+
+    // 5. Sincronização com Cloud (não-bloqueante)
+    showLoader();
+    fetchGoogleSheetsData(true).finally(() => hideLoader());
+    setInterval(() => fetchGoogleSheetsData(false), 5000);
+
+    console.log("Coenergy ERP: Sistema pronto.");
+
+  } catch (err) {
+    console.error("[Coenergy] Erro crítico na inicialização:", err);
+    window.isInitializing = false;
   }
-
-  // Tentar buscar do Google Sheets (Sincronização Nuvem Inicial)
-  showLoader();
-  fetchGoogleSheetsData(true).then(() => {
-    // Se a URL não foi configurada e não temos dados, carregamos dummy
-    if (state.periods.length === 0 && GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-      loadDemoData();
-    }
-    hideLoader();
-  });
-
-  // Polling a cada 5 segundos para reatividade sem refresh (Google Sheets)
-  setInterval(() => fetchGoogleSheetsData(false), 5000);
 });
 
 // --- GOOGLE SHEETS INTEGRATION ---
@@ -347,6 +400,74 @@ function setupGlobalSearch() {
 
 window.loteParsedData = [];
 
+// -----------------------------------------------------------------------
+// NORMALIZAÇÃO DE LOTE: helpers para tratar variações de entrada do usuário
+// -----------------------------------------------------------------------
+
+/** Remove acentos, converte para minúsculo e apara espaços. */
+function sanitizeLoteString(str) {
+  if (!str) return '';
+  return str.toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Mapeia qualquer variação de Status => valor canônico do sistema.
+ * Padrão: 'Ativos'
+ */
+function mapLoteStatus(raw) {
+  var clean = sanitizeLoteString(raw);
+  if (clean === 'sairam' || clean === 'saiu' || clean === 'saidas' || clean === 'saida') {
+    return 'Saíram';
+  }
+  if (clean === 'em espera' || clean === 'espera' || clean === 'aguardando' || clean === 'pendente') {
+    return 'Em espera';
+  }
+  if (clean === 'inadimplentes' || clean === 'inadimplente' || clean === 'inadimplencia') {
+    return 'Inadimplentes';
+  }
+  return 'Ativos'; // padrão
+}
+
+/**
+ * Mapeia qualquer variação de Tipo => valor canônico do sistema.
+ * Padrão: 'Pessoa Física'
+ */
+function mapLoteTipo(raw) {
+  var clean = sanitizeLoteString(raw);
+  if (
+    clean === 'pessoa juridica' || clean === 'juridica' ||
+    clean === 'pj' || clean === 'j' ||
+    clean.includes('juridic')
+  ) {
+    return 'Pessoa Jurídica';
+  }
+  return 'Pessoa Física'; // padrão
+}
+
+/**
+ * Converte DD/MM/YYYY, DD-MM-YYYY ou YYYY-MM-DD para YYYY-MM-DD.
+ */
+function normalizeLoteDate(raw) {
+  var clean = (raw || '').trim();
+  if (!clean) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+    var p = clean.split('/');
+    return p[2] + '-' + p[1] + '-' + p[0];
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return clean; // já correto
+  }
+  if (/^\d{2}-\d{2}-\d{4}$/.test(clean)) {
+    var q = clean.split('-');
+    return q[2] + '-' + q[1] + '-' + q[0];
+  }
+  return clean; // devolve como veio para não perder o dado
+}
+
 function setupLoteEntry() {
   const textarea = document.getElementById('lote-textarea');
   const previewArea = document.getElementById('lote-preview-area');
@@ -366,21 +487,36 @@ function setupLoteEntry() {
     const rows = text.split('\n');
     window.loteParsedData = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i].trim();
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i].trim();
       if (!row) continue;
 
-      const cols = row.split('\t');
+      var cols = row.split('\t');
       if (cols.length >= 6) {
+        // --- NORMALIZAÇÃO ---
+        var rawStatus    = cols[4].trim();
+        var rawTipo      = cols[5].trim();
+        var rawDate      = cols[3].trim();
+
+        var finalStatus  = mapLoteStatus(rawStatus);   // Ex: "SAIRAM" => "Saíram"
+        var finalTipo    = mapLoteTipo(rawTipo);        // Ex: "pj" => "Pessoa Jurídica"
+        var finalDate    = normalizeLoteDate(rawDate);  // Ex: "15/01/2026" => "2026-01-15"
+
+        var finalSaldo   = parseFloat((cols[2] || '0').replace(/\./g,'').replace(',','.').trim()) || 0;
+        var finalKw      = parseFloat(cols[1].replace(/\./g,'').replace(',','.').trim()) || 0;
+
+        // Se status for Inadimplentes, marca flag
+        var finalInad    = (finalStatus === 'Inadimplentes');
+
         window.loteParsedData.push({
-          clientName: cols[0].trim(),
-          avgKw: parseFloat(cols[1].replace(/\./g, '').replace(',', '.').trim()) || 0,
-          saldo: parseFloat((cols[2] || '0').replace(/\./g, '').replace(',', '.').trim()) || 0,
-          dateInclusion: cols[3].trim(), // YYYY-MM-DD or DD/MM/YYYY
-          status: cols[4].trim(),
-          tipoCliente: cols[5].trim(),
-          inadimplente: false,
-          dateSaida: ''
+          clientName:    cols[0].trim(),
+          avgKw:         finalKw,
+          saldo:         finalSaldo,
+          dateInclusion: finalDate,
+          status:        finalStatus,
+          tipoCliente:   finalTipo,
+          inadimplente:  finalInad,
+          dateSaida:     ''
         });
       }
     }
@@ -732,55 +868,80 @@ window.cancelInlineEdit = function () {
   state.inlineEditingPeriodId = null;
 };
 
-window.saveInlineEdit = async function (periodId, recordId) {
-  const row = document.querySelector(`tr[data-record-id="${recordId}"]`);
-  if (!row) return;
+window.saveInlineEdit = function(periodId, recordId) {
+  // Lê cada campo pelo seu ID único para evitar mapeamento errado
+  var elNome     = document.getElementById('edit-nome-'       + recordId);
+  var elTipo     = document.getElementById('edit-tipo-'       + recordId);
+  var elDataInc  = document.getElementById('edit-data-inc-'  + recordId);
+  var elMedia    = document.getElementById('edit-media-'      + recordId);
+  var elStatus   = document.getElementById('edit-status-'    + recordId);
+  var elSaldo    = document.getElementById('edit-saldo-'     + recordId);
+  var elDataSaida = document.getElementById('edit-data-saida-' + recordId);
 
-  const newName = row.querySelector('.edit-name').value;
-  const newAvgKw = parseFloat(row.querySelector('.edit-kw').value);
-  const newDate = row.querySelector('.edit-date').value;
-  const newStatus = row.querySelector('.edit-status').value;
-  const newTipo = row.querySelector('.edit-tipo').value;
-  const newSaldo = parseFloat(row.querySelector('.edit-saldo').value) || 0;
-
-  const tempState = [...state.periods];
-  const periodIndex = tempState.findIndex(p => p.id === periodId);
-  if (periodIndex !== -1) {
-    const recordIndex = tempState[periodIndex].records.findIndex(r => r.id === recordId);
-    if (recordIndex !== -1) {
-      const record = tempState[periodIndex].records[recordIndex];
-      record.clientName = newName;
-      record.avgKw = newAvgKw;
-      record.dateInclusion = newDate;
-      record.status = newStatus;
-      record.tipoCliente = newTipo;
-      record.saldo = newSaldo;
-
-      // Handle Data de Saída logic if status changed
-      if (newStatus !== 'Saíram') {
-        record.dateSaida = '';
-      }
-
-      state.periods = tempState;
-
-      // Update backend
-      if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-        await postToGoogleSheets({
-          action: 'edit_client',
-          id: recordId,
-          clientName: newName,
-          dateInclusion: newDate,
-          avgKw: newAvgKw,
-          status: newStatus,
-          tipoCliente: newTipo,
-          saldo: newSaldo,
-          dateSaida: record.dateSaida,
-          inadimplente: record.inadimplente
-        });
-      }
-    }
+  // Validação de campos obrigatórios
+  if (!elNome || !elTipo || !elDataInc || !elMedia || !elStatus || !elSaldo || !elDataSaida) {
+    console.error('[saveInlineEdit] Campos de entrada não encontrados para id:', recordId);
+    return;
   }
-  window.cancelInlineEdit();
+
+  var newName     = elNome.value.trim();
+  var newTipo     = elTipo.value;
+  var newDateInc  = elDataInc.value;              // formato YYYY-MM-DD
+  var newAvgKw    = parseFloat(elMedia.value) || 0;
+  var newStatus   = elStatus.value;
+  var newSaldo    = parseFloat(elSaldo.value) || 0;
+  var newDateSaida = elDataSaida.value || '';     // formato YYYY-MM-DD ou ''
+
+  if (!newName) {
+    alert('O nome do cliente não pode estar vazio.');
+    return;
+  }
+
+  // Mutação do estado de forma explícita (Vanilla JS)
+  var newPeriods = state.periods.map(function(period) {
+    if (period.id !== periodId) return period;
+    var newRecords = period.records.map(function(record) {
+      if (record.id !== recordId) return record;
+      // Se o status mudou de Saíram, limpa dateSaida
+      var dateSaidaFinal = (newStatus === 'Saíram') ? newDateSaida : '';
+      return {
+        id: record.id,
+        clientName: newName,
+        dateInclusion: newDateInc,
+        avgKw: newAvgKw,
+        status: newStatus,
+        tipoCliente: newTipo,
+        saldo: newSaldo,
+        dateSaida: dateSaidaFinal,
+        inadimplente: record.inadimplente,
+        contasAtrasadas: record.contasAtrasadas || []
+      };
+    });
+    return { id: period.id, name: period.name, month: period.month, year: period.year, records: newRecords };
+  });
+
+  // Fecha modo de edição ANTES de atualizar estado (evita flash)
+  state.inlineEditingRecordId = null;
+  state.inlineEditingPeriodId = null;
+
+  // Dispara re-render via Proxy
+  window.setPeriods(newPeriods);
+
+  // Persistência assíncrona
+  if (!GOOGLE_APPS_SCRIPT_URL.includes('COLE_SUA_URL')) {
+    postToGoogleSheets({
+      action: 'edit_client',
+      id: recordId,
+      clientName: newName,
+      dateInclusion: newDateInc,
+      avgKw: newAvgKw,
+      status: newStatus,
+      tipoCliente: newTipo,
+      saldo: newSaldo,
+      dateSaida: (newStatus === 'Saíram') ? newDateSaida : '',
+      inadimplente: false
+    }).catch(function(err) { console.error('Erro ao salvar edição:', err); });
+  }
 };
 
 window.deleteRecord = async function (periodId, recordId) {
@@ -799,20 +960,81 @@ window.deleteRecord = async function (periodId, recordId) {
   }
 };
 
+/**
+ * toggleInadimplente
+ * Alterna o status de inadimplência de um cliente e sincroniza toda a UI
+ * imediatamente (Dashboard KPIs, Aba Inadimplência e tabela Organização).
+ *
+ * @param {string} periodId  - ID do período (ex: "p-2026-1")
+ * @param {string} recordId  - ID do cliente dentro do período
+ */
 window.toggleInadimplente = async function (periodId, recordId) {
-  const tempState = [...state.periods];
-  const periodIndex = tempState.findIndex(p => p.id === periodId);
-  if (periodIndex !== -1) {
-    const recordIndex = tempState[periodIndex].records.findIndex(r => r.id == recordId);
-    if (recordIndex !== -1) {
-      tempState[periodIndex].records[recordIndex].inadimplente = !tempState[periodIndex].records[recordIndex].inadimplente;
-      state.periods = tempState;
-    }
-  }
 
-  if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-    await postToGoogleSheets({ action: 'toggle_inadimplente', id: recordId });
-    fetchGoogleSheetsData();
+  // 1. MUTAÇÃO IMUTÁVEL DO ESTADO (padrão funcional do sistema)
+  window.setPeriods(function(prevPeriods) {
+    var updated = prevPeriods.map(function(period) {
+      if (period.id !== periodId) return period;
+
+      var newRecords = period.records.map(function(record) {
+        if (record.id !== recordId) return record;
+
+        var tornandoInadimplente = !record.inadimplente;
+
+        return {
+          id:            record.id,
+          clientName:    record.clientName,
+          dateInclusion: record.dateInclusion,
+          avgKw:         record.avgKw,
+          // Sincroniza o campo "status" com a flag: Ativos <-> Inadimplentes
+          status:        tornandoInadimplente ? 'Inadimplentes' : 'Ativos',
+          tipoCliente:   record.tipoCliente,
+          saldo:         record.saldo,
+          dateSaida:     record.dateSaida || '',
+          inadimplente:  tornandoInadimplente,
+          // Ao marcar: garante array existente; ao dar baixa: limpa dívidas
+          contasAtrasadas: tornandoInadimplente
+            ? (record.contasAtrasadas && record.contasAtrasadas.length > 0
+                ? record.contasAtrasadas
+                : [])
+            : []
+        };
+      });
+
+      return {
+        id:      period.id,
+        name:    period.name,
+        month:   period.month,
+        year:    period.year,
+        records: newRecords
+      };
+    });
+
+    return updated;  // setPeriods já faz o spread e persiste no localStorage
+  });
+
+  // 2. SINCRONIZAÇÃO EXPLÍCITA DA UI (garante render mesmo sem re-atribuição do Proxy)
+  try { if (typeof updateDashboardUI    === 'function') updateDashboardUI();    } catch(e) { console.error('[toggleInadimplente] Dashboard:', e); }
+  try { if (typeof updateInadimplenciaUI === 'function') updateInadimplenciaUI(); } catch(e) { console.error('[toggleInadimplente] Inadimplência:', e); }
+  try { if (typeof updateOrganizacaoUI   === 'function') updateOrganizacaoUI();   } catch(e) { console.error('[toggleInadimplente] Organização:', e); }
+  try { if (typeof updateDataEntryUI     === 'function') updateDataEntryUI();     } catch(e) { console.error('[toggleInadimplente] DataEntry:', e); }
+
+  // 3. SINCRONIZAÇÃO COM BACKEND (não-bloqueante, apenas se Google Sheets configurado)
+  if (!GOOGLE_APPS_SCRIPT_URL.includes('COLE_SUA_URL')) {
+    try {
+      // Busca o estado atual do registro após a mutação para enviar dados corretos
+      var pAtual = state.periods.find(function(p) { return p.id === periodId; });
+      var rAtual = pAtual ? pAtual.records.find(function(r) { return r.id === recordId; }) : null;
+
+      await postToGoogleSheets({
+        action:          'update_record',
+        id:              recordId,
+        inadimplente:    rAtual ? rAtual.inadimplente : false,
+        status:          rAtual ? rAtual.status        : 'Ativos',
+        contasAtrasadas: rAtual ? rAtual.contasAtrasadas : []
+      });
+    } catch (err) {
+      console.error('[toggleInadimplente] Erro na sincronização Cloud:', err);
+    }
   }
 };
 
@@ -1028,71 +1250,103 @@ function updateDataEntryUI() {
  */
 function renderRecordsTable(records, tbody) {
   tbody.innerHTML = '';
-  records.forEach(record => {
-    const isEditing = state.inlineEditingRecordId === record.id;
-    const dateParts = record.dateInclusion.split('-');
-    const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+  records.forEach(function(record) {
+    var isEditing = state.inlineEditingRecordId === record.id;
+    var rawDate = record.dateInclusion || '';
+    var dateParts = rawDate.split('-');
+    var formattedDate = dateParts.length === 3 ? (dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0]) : '-';
+    var rawDateSaida = record.dateSaida || '';
+    var formattedDateSaida = rawDateSaida ? rawDateSaida.split('-').reverse().join('/') : '-';
 
-    let badgeClass = 'ativos';
+    var badgeClass = 'ativos';
     if (record.status === 'Em espera') badgeClass = 'espera';
     if (record.status === 'Saíram') badgeClass = 'sairam';
+    if (record.status === 'Inadimplentes') badgeClass = 'sairam';
 
-    const tr = document.createElement('tr');
-    tr.setAttribute('data-record-id', record.id);
+    var rid = record.id; // shorthand para IDs
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-record-id', rid);
 
     if (isEditing) {
-      tr.innerHTML = `
-        <td><input type="text" class="edit-name" value="${record.clientName}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);"></td>
-        <td>
-          <select class="edit-tipo" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);">
-            <option value="Pessoa Física" ${record.tipoCliente === 'Pessoa Física' ? 'selected' : ''}>PF</option>
-            <option value="Pessoa Jurídica" ${record.tipoCliente === 'Pessoa Jurídica' ? 'selected' : ''}>PJ</option>
-          </select>
-        </td>
-        <td><input type="date" class="edit-date" value="${record.dateInclusion}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);"></td>
-        <td><input type="number" step="0.1" class="edit-kw" value="${record.avgKw}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);"></td>
-        <td>
-          <select class="edit-status" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange);">
-            <option value="Ativos" ${record.status === 'Ativos' ? 'selected' : ''}>Ativos</option>
-            <option value="Em espera" ${record.status === 'Em espera' ? 'selected' : ''}>Em espera</option>
-            <option value="Saíram" ${record.status === 'Saíram' ? 'selected' : ''}>Saíram</option>
-          </select>
-        </td>
-        <td><input type="number" step="0.01" class="edit-saldo" value="${record.saldo}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--orange); text-align: center;"></td>
-        <td>-</td>
-        <td style="display: flex; gap: 8px; justify-content: center; padding: 16px;">
-          <button class="btn-icon text-orange" onclick="saveInlineEdit('${record.periodId}', '${record.id}')" title="Salvar Alterações">
-            <i class="fa-solid fa-check" style="font-size: 1.5rem;"></i>
-          </button>
-          <button class="btn-icon text-gray" onclick="cancelInlineEdit()" title="Cancelar">
-            <i class="fa-solid fa-xmark" style="font-size: 1.5rem;"></i>
-          </button>
-        </td>
-      `;
+      // Ordem EXATA dos cabeçalhos: Nome | Tipo | Data Inc. | kW | Status | Saldo | Data Saída | Ações
+      tr.innerHTML =
+        // 1 - Nome
+        '<td>' +
+          '<input type="text" id="edit-nome-' + rid + '" value="' + record.clientName.replace(/"/g, '&quot;') + '"' +
+          ' style="width:100%;padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+        '</td>' +
+        // 2 - Tipo
+        '<td>' +
+          '<select id="edit-tipo-' + rid + '" style="padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+            '<option value="Pessoa Física"' + (record.tipoCliente === 'Pessoa Física' ? ' selected' : '') + '>Pessoa Física</option>' +
+            '<option value="Pessoa Jurídica"' + (record.tipoCliente === 'Pessoa Jurídica' ? ' selected' : '') + '>Pessoa Jurídica</option>' +
+          '</select>' +
+        '</td>' +
+        // 3 - Data de Inclusão (YYYY-MM-DD para o date picker funcionar)
+        '<td>' +
+          '<input type="date" id="edit-data-inc-' + rid + '" value="' + rawDate + '"' +
+          ' style="padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+        '</td>' +
+        // 4 - Média kW
+        '<td>' +
+          '<input type="number" id="edit-media-' + rid + '" value="' + record.avgKw + '" step="0.1" min="0"' +
+          ' style="width:90px;padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+        '</td>' +
+        // 5 - Status
+        '<td>' +
+          '<select id="edit-status-' + rid + '" style="padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+            '<option value="Ativos"' + (record.status === 'Ativos' ? ' selected' : '') + '>Ativos</option>' +
+            '<option value="Em espera"' + (record.status === 'Em espera' ? ' selected' : '') + '>Em espera</option>' +
+            '<option value="Saíram"' + (record.status === 'Saíram' ? ' selected' : '') + '>Saíram</option>' +
+            '<option value="Inadimplentes"' + (record.status === 'Inadimplentes' ? ' selected' : '') + '>Inadimplentes</option>' +
+          '</select>' +
+        '</td>' +
+        // 6 - Saldo
+        '<td>' +
+          '<input type="number" id="edit-saldo-' + rid + '" value="' + (record.saldo || 0) + '" step="0.1"' +
+          ' style="width:80px;padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+        '</td>' +
+        // 7 - Data de Saída (YYYY-MM-DD para o date picker)
+        '<td>' +
+          '<input type="date" id="edit-data-saida-' + rid + '" value="' + rawDateSaida + '"' +
+          ' style="padding:5px;border:1px solid var(--border-color);border-radius:4px;font-size:0.9rem;">' +
+        '</td>' +
+        // 8 - Ações
+        '<td style="display:flex;gap:8px;justify-content:center;align-items:center;padding:12px;">' +
+          '<button class="btn-icon text-orange" onclick="saveInlineEdit(\'' + record.periodId + '\',\'' + rid + '\')" title="Salvar Alterações">' +
+            '<i class="fa-solid fa-check" style="font-size:1.4rem;"></i>' +
+          '</button>' +
+          '<button class="btn-icon text-gray" onclick="cancelInlineEdit()" title="Cancelar">' +
+            '<i class="fa-solid fa-xmark" style="font-size:1.4rem;"></i>' +
+          '</button>' +
+        '</td>';
     } else {
-      tr.innerHTML = `
-        <td>
-          <strong style="font-size: 1.15rem;">${record.clientName}</strong>
-          ${record.inadimplente ? '<span class="badge-inadimplente" style="font-size: 0.8rem; padding: 4px 8px;">Inadimplente</span>' : ''}
-        </td>
-        <td><span style="font-size: 0.95rem; color: #6b7280; font-weight: 500;">${record.tipoCliente}</span></td>
-        <td style="font-size: 1.05rem;">${formattedDate}</td>
-        <td style="font-size: 1.05rem;"><strong style="font-size: 1.15rem;">${record.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
-        <td><span class="status-badge ${badgeClass}" style="font-size: 0.95rem; padding: 6px 14px;">${record.status}</span></td>
-        <td style="font-size: 1.05rem;" data-numeric="true"><strong>${record.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
-        <td style="font-size: 1.05rem;">${record.dateSaida ? record.dateSaida.split('-').reverse().join('/') : '-'}</td>
-        <td style="display: flex; flex-direction: column; gap: 8px; justify-content: center; align-items: center; text-align: center; min-width: 160px; padding: 16px;">
-          <button class="action-btn-stacked" onclick="startInlineEdit('${record.periodId}', '${record.id}')" title="Editar este registro (Inline)">
-            <i class="fa-solid fa-pencil"></i> Editar
-          </button>
-          <button class="action-btn-stacked warning ${record.inadimplente ? 'active' : ''}" onclick="toggleInadimplente('${record.periodId}', '${record.id}')" title="Marcar/Desmarcar Inadimplência">
-            <i class="fa-solid fa-file-invoice-dollar"></i> Inadimplente
-          </button>
-          <button class="action-btn-stacked danger" onclick="deleteRecord('${record.periodId}', '${record.id}')" title="Excluir este registro">
-            <i class="fa-solid fa-trash"></i> Excluir
-          </button>
-        </td>
-      `;
+      var actionsHtml =
+        '<td style="display:flex;flex-direction:column;gap:6px;justify-content:center;align-items:center;text-align:center;min-width:150px;padding:12px;">' +
+          '<button class="action-btn-stacked" onclick="startInlineEdit(\'' + record.periodId + '\',\'' + rid + '\')" title="Editar">' +
+            '<i class="fa-solid fa-pencil"></i> Editar' +
+          '</button>' +
+          '<button class="action-btn-stacked warning ' + (record.inadimplente ? 'active' : '') + '" onclick="toggleInadimplente(\'' + record.periodId + '\',\'' + rid + '\')" title="Marcar Inadimplência">' +
+            '<i class="fa-solid fa-file-invoice-dollar"></i> Inadimplente' +
+          '</button>' +
+          '<button class="action-btn-stacked danger" onclick="deleteRecord(\'' + record.periodId + '\',\'' + rid + '\')" title="Excluir">' +
+            '<i class="fa-solid fa-trash"></i> Excluir' +
+          '</button>' +
+        '</td>';
+
+      // Ordem exata = cabeçalhos: Nome | Tipo | Data Inc. | kW | Status | Saldo | Data Saída | Ações
+      tr.innerHTML =
+        '<td>' +
+          '<strong style="font-size:1.1rem;">' + record.clientName + '</strong>' +
+          (record.inadimplente ? '<span class="badge-inadimplente" style="font-size:0.75rem;padding:3px 7px;margin-left:6px;">Inadimplente</span>' : '') +
+        '</td>' +
+        '<td><span style="color:#6b7280;font-weight:500;">' + (record.tipoCliente || '-') + '</span></td>' +
+        '<td>' + formattedDate + '</td>' +
+        '<td><strong>' + record.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '</strong> kW</td>' +
+        '<td><span class="status-badge ' + badgeClass + '" style="padding:5px 12px;">' + record.status + '</span></td>' +
+        '<td data-numeric="true"><strong>' + (record.saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '</strong> kW</td>' +
+        '<td>' + formattedDateSaida + '</td>' +
+        actionsHtml;
     }
     tbody.appendChild(tr);
   });
@@ -1230,12 +1484,14 @@ function updateUsinasUI() {
           <span>${usina.name}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px;">
-          <button class="btn-icon" style="color: var(--text-muted); background: none; border: none; cursor: pointer;" onclick="toggleUsinaEditModeMaster(event, '${usina.name.replace(/'/g, "\\'")}')" title="Modo Edição">
-            <i class="fa-solid fa-gear"></i>
-          </button>
-          <button class="btn-danger-sm btn-delete-usina" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deleteUsinaComplete(event, '${usina.name.replace(/'/g, "\\'")}')" title="Excluir Usina">
-            <i class="fa-solid fa-trash"></i>
-          </button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <button class="btn-icon" style="color: var(--text-muted); background: none; border: none; cursor: pointer;" onclick="toggleUsinaEditModeMaster(event, '${(usina.name || '').replace(/'/g, "\\'")}')" title="Modo Edição">
+              <i class="fa-solid fa-gear"></i>
+            </button>
+            <button class="btn-danger-sm btn-delete-usina" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deleteUsinaComplete(event, '${(usina.name || '').replace(/'/g, "\\'")}')" title="Excluir Usina">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
           <i class="fa-solid fa-chevron-down accordion-icon"></i>
         </div>
       </div>
@@ -1281,7 +1537,7 @@ function updateUsinasUI() {
                     <th>Mês / Ano</th>
                     <th>Energia Injetada (kW)</th>
                     <th>Efetivamente Compensado (kW)</th>
-                    <th class="usina-acoes-header" style="width: 100px;">Ações</th>
+                    <th class="usina-acoes-header admin-only" style="width: 100px;">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="tbody-usina-${safeUsinaId}">
@@ -1320,24 +1576,20 @@ function generateUsinaTableRowsHTML(usinaName, records) {
     return `<tr><td colspan="4" style="text-align: center; color: #6b7280;">Nenhum registro encontrado.</td></tr>`;
   }
 
-  const safeUsinaName = usinaName.replace(/'/g, "\\'");
+  const safeUsinaName = (usinaName || '').replace(/'/g, "\\'");
 
   return records.map(record => {
-    let fmtMonth = record.month;
-    const parts = record.month.split('-');
-    if (parts.length === 2) fmtMonth = `${parts[1]}/${parts[0]}`;
+    if (!record) return '';
+    let fmtMonth = record.month || '-';
+    if (record.month && record.month.includes('-')) {
+      const parts = record.month.split('-');
+      if (parts.length === 2) fmtMonth = `${parts[1]}/${parts[0]}`;
+    }
 
-    return `
-      <tr id="row-${record.id}">
-        <td>${fmtMonth}</td>
-        <td>
-          <span class="read-only-val">${record.esperada}</span>
-          <input type="number" class="edit-input-val" id="edit-esperada-${record.id}" value="${record.esperada}" step="0.1" style="display:none; padding: 4px; width: 100px; border: 1px solid var(--border-color); border-radius: 4px;">
-        </td>
-        <td>
-          <span class="read-only-val">${record.compensada}</span>
-          <input type="number" class="edit-input-val" id="edit-compensada-${record.id}" value="${record.compensada}" step="0.1" style="display:none; padding: 4px; width: 100px; border: 1px solid var(--border-color); border-radius: 4px;">
-        </td>
+    const valEsperada = record.esperada !== undefined ? record.esperada : 0;
+    const valCompensada = record.compensada !== undefined ? record.compensada : 0;
+
+    let actionsHtml = `
         <td class="usina-acoes-cell">
           <div class="action-btns-read" style="display: flex;">
             <button class="btn-icon" style="color: var(--text-muted); background: none; border: none; cursor: pointer; margin-right: 8px;" onclick="editUsinaRecord('${record.id}')" title="Editar">
@@ -1348,7 +1600,7 @@ function generateUsinaTableRowsHTML(usinaName, records) {
             </button>
           </div>
           <div class="action-btns-edit" style="display: none;">
-            <button class="btn-icon" style="color: #10b981; background: none; border: none; cursor: pointer; margin-right: 8px;" onclick="saveUsinaRecord('${safeUsinaName}', '${record.id}', '${record.month}')" title="Salvar">
+            <button class="btn-icon" style="color: #10b981; background: none; border: none; cursor: pointer; margin-right: 8px;" onclick="saveUsinaRecord('${safeUsinaName}', '${record.id}', '${record.month || ''}')" title="Salvar">
               <i class="fa-solid fa-check"></i>
             </button>
             <button class="btn-icon" style="color: var(--text-muted); background: none; border: none; cursor: pointer;" onclick="cancelUsinaRecord('${record.id}')" title="Cancelar">
@@ -1356,6 +1608,20 @@ function generateUsinaTableRowsHTML(usinaName, records) {
             </button>
           </div>
         </td>
+      `;
+
+    return `
+      <tr id="row-${record.id}">
+        <td>${fmtMonth}</td>
+        <td>
+          <span class="read-only-val">${valEsperada}</span>
+          <input type="number" class="edit-input-val" id="edit-esperada-${record.id}" value="${valEsperada}" step="0.1" style="display:none; padding: 4px; width: 100px; border: 1px solid var(--border-color); border-radius: 4px;">
+        </td>
+        <td>
+          <span class="read-only-val">${valCompensada}</span>
+          <input type="number" class="edit-input-val" id="edit-compensada-${record.id}" value="${valCompensada}" step="0.1" style="display:none; padding: 4px; width: 100px; border: 1px solid var(--border-color); border-radius: 4px;">
+        </td>
+        ${actionsHtml}
       </tr>
     `;
   }).join('');
@@ -2053,8 +2319,15 @@ function loadDemoData() {
   ];
   
   state.usinas = [
-    { id: "u-1", name: "Usina Solar Norte" },
-    { id: "u-2", name: "Usina Solar Sul" }
+    {
+      id: "u-1",
+      name: "Usina Solar Norte",
+      records: [
+        { id: "r-1", month: "2026-01", esperada: 1500, compensada: 1450 },
+        { id: "r-2", month: "2026-02", esperada: 1600, compensada: 1580 }
+      ]
+    },
+    { id: "u-2", name: "Usina Solar Sul", records: [] }
   ];
 
   state.creditos = [
@@ -2123,26 +2396,18 @@ function openClientsModal(filterType) {
   }
 
   // Build thead
+  let theadHtml = `
+    <th>Nome do Cliente</th>
+    <th>Tipo</th>
+    <th>Média de kW</th>
+    <th>Data de Inclusão</th>
+    <th>Status</th>
+  `;
   if (filterType === 'Saíram') {
-    thead.innerHTML = `
-      <th>Nome do Cliente</th>
-      <th>Tipo</th>
-      <th>Média de kW</th>
-      <th>Data de Inclusão</th>
-      <th>Status</th>
-      <th>Data de Saída</th>
-      <th>Ações</th>
-    `;
-  } else {
-    thead.innerHTML = `
-      <th>Nome do Cliente</th>
-      <th>Tipo</th>
-      <th>Média de kW</th>
-      <th>Data de Inclusão</th>
-      <th>Status</th>
-      <th>Ações</th>
-    `;
+    theadHtml += `<th>Data de Saída</th>`;
   }
+  theadHtml += `<th>Ações</th>`;
+  thead.innerHTML = theadHtml;
 
   // Build tbody
   tbody.innerHTML = '';
@@ -2187,11 +2452,12 @@ function openClientsModal(filterType) {
       });
 
       rowHtml += `
-      <td>
-        <button class="btn-toggle-inadimplente ${c.inadimplente ? 'active' : ''}" onclick="toggleInadimplente('${recordPeriodId}', '${c.id}'); setTimeout(() => openClientsModal('${filterType}'), 100);" title="Marcar/Desmarcar Inadimplência">
-          <i class="fa-solid fa-file-invoice-dollar"></i> Mudar Status
-        </button>
-      </td>`;
+        <td>
+          <button class="btn-toggle-inadimplente ${c.inadimplente ? 'active' : ''}" onclick="toggleInadimplente('${recordPeriodId}', '${c.id}'); setTimeout(() => openClientsModal('${filterType}'), 100);" title="Marcar/Desmarcar Inadimplência">
+            <i class="fa-solid fa-file-invoice-dollar"></i> Mudar Status
+          </button>
+        </td>
+        `;
 
       const tr = document.createElement('tr');
       tr.innerHTML = rowHtml;
@@ -2212,11 +2478,19 @@ function setupOrganizacaoFilters() {
   if (!kwInput || !statusSelect || !btnClear) return;
 
   kwInput.addEventListener('input', () => updateOrganizacaoUI());
-  statusSelect.addEventListener('change', () => updateOrganizacaoUI());
+  statusSelect.addEventListener('change', () => {
+    if (statusSelect.value === 'Saldo') {
+      kwInput.placeholder = "Mínimo de Saldo (kW)...";
+    } else {
+      kwInput.placeholder = "Ex: 1000";
+    }
+    updateOrganizacaoUI();
+  });
   if (nameInput) nameInput.addEventListener('input', () => updateOrganizacaoUI());
 
   btnClear.addEventListener('click', () => {
     kwInput.value = '';
+    kwInput.placeholder = "Ex: 1000";
     statusSelect.value = 'Todos';
     if (nameInput) nameInput.value = '';
     updateOrganizacaoUI();
@@ -2236,11 +2510,11 @@ function updateOrganizacaoUI() {
   const nameFilter = (document.getElementById('filterName').value || '').trim();
   const normalizedSearch = normalizeString(nameFilter);
 
-  // Flatten all records from all periods
+  // Flatten all records from all periods, preserving periodId for toggleInadimplente
   let allClients = [];
   (state.periods || []).forEach(p => {
     (p.records || []).forEach(r => {
-      allClients.push(r);
+      allClients.push(Object.assign({}, r, { periodId: p.id }));
     });
   });
 
@@ -2248,14 +2522,20 @@ function updateOrganizacaoUI() {
 
   // Apply filters
   const filtered = allClients.filter(c => {
-    const matchesKw = c.avgKw >= kwMin;
-    const matchesName = normalizedSearch === '' || normalizeString(c.clientName).includes(normalizedSearch);
+    let matchesKw = false;
     let matchesStatus = true;
+    const matchesName = normalizedSearch === '' || normalizeString(c.clientName).includes(normalizedSearch);
 
-    if (statusFilter === 'Inadimplentes') {
-      matchesStatus = c.inadimplente === true;
-    } else if (statusFilter !== 'Todos') {
-      matchesStatus = c.status === statusFilter;
+    if (statusFilter === 'Saldo') {
+      matchesKw = (c.saldo || 0) >= kwMin;
+      matchesStatus = true; // No "Saldo" mode, we match all statuses
+    } else {
+      matchesKw = (c.avgKw || 0) >= kwMin;
+      if (statusFilter === 'Inadimplentes') {
+        matchesStatus = c.inadimplente === true;
+      } else if (statusFilter !== 'Todos') {
+        matchesStatus = c.status === statusFilter;
+      }
     }
 
     return matchesKw && matchesStatus && matchesName;
@@ -2320,23 +2600,43 @@ function updateOrganizacaoUI() {
     if (tableContainer) tableContainer.style.display = 'block';
     noResults.style.display = 'none';
 
-    filtered.forEach(c => {
-      const dateParts = c.dateInclusion.split('-');
-      const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : c.dateInclusion;
+    filtered.forEach(function(c) {
+      var dateParts = c.dateInclusion.split('-');
+      var formattedDate = dateParts.length === 3 ? (dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0]) : c.dateInclusion;
 
-      let badgeClass = 'ativos';
+      var badgeClass = 'ativos';
       if (c.status === 'Em espera') badgeClass = 'espera';
       if (c.status === 'Saíram') badgeClass = 'sairam';
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="text-align: center;"><strong>${c.clientName}</strong> ${c.inadimplente ? '<span class="badge-inadimplente">Inadimplente</span>' : ''}</td>
-        <td style="text-align: center;"><span style="font-size: 0.85rem; color: #6b7280; font-weight: 500;">${c.tipoCliente}</span></td>
-        <td style="text-align: center;"><strong>${c.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
-        <td style="text-align: center;">${formattedDate}</td>
-        <td style="text-align: center;"><span class="status-badge ${badgeClass}">${c.status}</span></td>
-        <td style="text-align: center;" data-numeric="true"><strong>${c.saldo ? c.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0'}</strong> kW</td>
-      `;
+      // Botão de toggle: vermelho quando ativo-inadimplente, cinza quando em dia
+      var btnInadClass = c.inadimplente ? 'btn-icon' : 'btn-icon';
+      var btnInadTitle = c.inadimplente ? 'Remover Inadimplência' : 'Marcar como Inadimplente';
+      var btnInadColor = c.inadimplente ? '#ef4444' : '#9ca3af';
+
+      var tr = document.createElement('tr');
+      // Badge logic and template strings as requested by user
+      var inadBadge = c.inadimplente ? ' <span style="color: red; font-size: 0.8rem;">(Inadimplente)</span>' : '';
+      var btnClass = 'btn-icon ' + (c.inadimplente ? 'text-red' : 'text-muted');
+
+      tr.innerHTML =
+        '<td style="text-align: center;">' +
+          '<strong>' + c.clientName + '</strong>' +
+          inadBadge +
+        '</td>' +
+        '<td style="text-align: center;"><span style="font-size: 0.85rem; color: #6b7280; font-weight: 500;">' + c.tipoCliente + '</span></td>' +
+        '<td style="text-align: center;"><strong>' + c.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '</strong> kW</td>' +
+        '<td style="text-align: center;">' + formattedDate + '</td>' +
+        '<td style="text-align: center;"><span class="status-badge ' + badgeClass + '">' + c.status + '</span></td>' +
+        '<td style="text-align: center;" data-numeric="true"><strong>' +
+          (c.saldo ? c.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0') +
+        '</strong> kW</td>' +
+        '<td style="text-align: center; white-space: nowrap;">' +
+          '<button class="' + btnClass + '" style="background: none; border: none; cursor: pointer; margin-right: 8px;" ' +
+            'onclick="window.toggleInadimplente(\'' + c.periodId + '\', \'' + c.id + '\')" ' +
+            'title="Marcar/Desmarcar Inadimplência">' +
+            '<i class="fa-solid fa-file-invoice-dollar"></i>' +
+          '</button>' +
+        '</td>';
       tbody.appendChild(tr);
     });
   }
@@ -2426,11 +2726,11 @@ function updateCreditosUI() {
 
       if (isEditing) {
         tr.innerHTML = `
-          <td><input type="text" class="edit-unidade" value="${c.unidade}" style="width: 100%; text-align: center;"></td>
-          <td><input type="text" class="edit-uc" value="${c.uc}" style="width: 100%; text-align: center;"></td>
+          <td><input type="text" class="edit-unidade" value="${c.unidade}" style="width: 100%;"></td>
+          <td><input type="text" class="edit-uc" value="${c.uc}" style="width: 100%;"></td>
           <td>
-            <select class="edit-mes" style="width: 100%; text-align: center;">
-              ${monthOrder.map(m => `<option value="${m}" ${m === c.mes ? 'selected' : ''}>${m}</option>`).join('')}
+            <select class="edit-mes" style="width: 100%;">
+              ${['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map(m => `<option value="${m}" ${c.mes === m ? 'selected' : ''}>${m}</option>`).join('')}
             </select>
           </td>
           <td><input type="number" class="edit-ano" value="${c.ano}" style="width: 100%; text-align: center;"></td>
@@ -2446,8 +2746,8 @@ function updateCreditosUI() {
         `;
       } else {
         tr.innerHTML = `
-          <td><span style="color: var(--text-muted); font-size: 0.85rem;">${c.unidade}</span></td>
-          <td>${c.uc}</td>
+          <td>${c.unidade}</td>
+          <td style="font-size: 0.85rem; color: #64748b;">${c.uc}</td>
           <td><strong>${c.mes}</strong></td>
           <td>${c.ano}</td>
           <td><strong>${c.total.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong> kW</td>
@@ -2621,65 +2921,135 @@ function setupInadimplenciaForm() {
 
     const [periodId, recordId] = select.value.split('|');
     const dataEmissao = document.getElementById('inadData').value;
-    const valor = parseFloat(document.getElementById('inadValor').value) || 0;
+    const valorInput = document.getElementById('inadValor').value;
+    const valor = parseFloat(valorInput) || 0;
 
-    const tempState = [...state.periods];
-    const pIdx = tempState.findIndex(p => p.id === periodId);
-    if (pIdx !== -1) {
-      const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
-      if (rIdx !== -1) {
-        const c = tempState[pIdx].records[rIdx];
-        if (!c.contasAtrasadas) c.contasAtrasadas = [];
-        c.contasAtrasadas.push({
-          id: `conta-${Date.now()}`,
-          dataEmissao,
-          valor
-        });
-        state.periods = tempState;
-
-        if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-          await postToGoogleSheets({ action: 'add_conta_atrasada', periodId, recordId, dataEmissao, valor });
-        }
-      }
+    if (!dataEmissao || valor <= 0) {
+      alert("Por favor, preencha a data e um valor válido.");
+      return;
     }
 
+    const newBill = {
+      id: `conta-${Date.now()}`,
+      dataEmissao,
+      valor
+    };
+
+    // --- ATUALIZAÇÃO FUNCIONAL UNIFICADA (⚛️ React-style / Forçar Re-render) ---
+    window.setPeriods(prevPeriods => {
+      const updated = prevPeriods.map(period => {
+        if (period.id !== periodId) return period;
+        return {
+          ...period,
+          records: period.records.map(record => {
+            if (record.id !== recordId) return record;
+            return {
+              ...record,
+              status: 'Inadimplentes',
+              inadimplente: true,
+              contasAtrasadas: [...(record.contasAtrasadas || []), newBill]
+            };
+          })
+        };
+      });
+      return [...updated]; // Garante nova referência de memória
+    });
+
+    // --- LIMPEZA DE INPUTS IMEDIATA ---
     document.getElementById('inadData').value = '';
     document.getElementById('inadValor').value = '';
-    select.focus();
+    
+    // --- PERSISTÊNCIA EM BACKGROUND ---
+    if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
+      setTimeout(async () => {
+        try {
+          // Buscamos o registro atualizado após o render
+          const updatedRecord = state.periods.find(p => p.id === periodId)?.records.find(r => r.id === recordId);
+          await postToGoogleSheets({ 
+            action: 'edit_client', 
+            id: recordId, 
+            status: 'Inadimplentes',
+            contasAtrasadas: updatedRecord.contasAtrasadas
+          });
+        } catch (err) {
+          console.error("Erro na persistência:", err);
+        }
+      }, 100);
+    }
   });
+
+  const searchInput = document.getElementById('inadSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => updateInadimplenciaUI());
+  }
 }
 
 function updateInadimplenciaUI() {
   const select = document.getElementById('inadCliSelect');
   const grid = document.getElementById('inadimplencia-cards-grid');
   const noRecords = document.getElementById('no-inadimplencia-records');
+  const searchInput = document.getElementById('inadSearch');
   if (!select || !grid) return;
 
-  const inadimplentes = [];
-  (state.periods || []).forEach(p => {
-    (p.records || []).forEach(r => {
-      if (r.inadimplente === true) inadimplentes.push({ periodId: p.id, record: r });
-    });
-  });
+  const searchTerm = searchInput ? normalizeString(searchInput.value) : '';
 
   const selectCurrentVal = select.value;
   select.innerHTML = '<option value="" disabled selected>Selecione um cliente da lista...</option>';
-  inadimplentes.forEach(item => {
+
+  const inadGroup = document.createElement('optgroup');
+  inadGroup.label = "Já Inadimplentes";
+  const otherGroup = document.createElement('optgroup');
+  otherGroup.label = "Outros Clientes (Serão convertidos)";
+
+  const allClientsFlat = [];
+  (state.periods || []).forEach(p => {
+    (p.records || []).forEach(r => {
+      allClientsFlat.push({ periodId: p.id, record: r });
+    });
+  });
+
+  // Ordenar alfabeticamente
+  allClientsFlat.sort((a, b) => a.record.clientName.localeCompare(b.record.clientName));
+
+  allClientsFlat.forEach(item => {
     const opt = document.createElement('option');
     opt.value = `${item.periodId}|${item.record.id}`;
     opt.textContent = item.record.clientName;
-    select.appendChild(opt);
+    
+    if (item.record.status === 'Inadimplentes') {
+      inadGroup.appendChild(opt);
+    } else {
+      otherGroup.appendChild(opt);
+    }
   });
+
+  if (inadGroup.children.length > 0) select.appendChild(inadGroup);
+  if (otherGroup.children.length > 0) select.appendChild(otherGroup);
+
   if (selectCurrentVal) select.value = selectCurrentVal;
 
-  const defaultingClients = inadimplentes;
+  // Filtragem para a listagem
+  let defaultingClients = allClientsFlat.filter(c => c.record.status === 'Inadimplentes' || c.record.inadimplente === true);
+  
+  if (searchTerm) {
+    defaultingClients = defaultingClients.filter(c => normalizeString(c.record.clientName).includes(searchTerm));
+  }
 
   grid.innerHTML = '';
   if (defaultingClients.length === 0) {
     grid.style.display = 'none';
-    if(noRecords) noRecords.style.display = 'flex';
+    if(noRecords) {
+      noRecords.style.display = 'flex';
+      if(searchTerm) {
+        noRecords.querySelector('h3').textContent = 'Nenhum resultado encontrado';
+        noRecords.querySelector('p').textContent = `Nenhum cliente inadimplente corresponde à busca "${searchInput.value}".`;
+      } else {
+        noRecords.querySelector('h3').textContent = 'Nenhum cliente inadimplente';
+        noRecords.querySelector('p').textContent = 'Todos os pagamentos estão em dia!';
+      }
+    }
   } else {
-    grid.style.display = 'grid';
+    grid.style.display = 'flex';
     if(noRecords) noRecords.style.display = 'none';
 
     defaultingClients.forEach(item => {
@@ -2687,18 +3057,22 @@ function updateInadimplenciaUI() {
       const hasBills = record.contasAtrasadas && record.contasAtrasadas.length > 0;
       const totalDevido = hasBills ? record.contasAtrasadas.reduce((sum, conta) => sum + conta.valor, 0) : 0;
 
-      const card = document.createElement('div');
-      card.className = 'white-panel shadow';
-      card.style.padding = '20px';
-      card.style.display = 'flex';
-      card.style.flexDirection = 'column';
+      const row = document.createElement('div');
+      row.className = 'white-panel shadow';
+      row.style.padding = '24px 32px';
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.width = '100%';
+      row.style.borderLeft = '6px solid #f97316';
 
       let bodyContent = '';
       if (!hasBills) {
         bodyContent = `
-          <div style="padding: 24px; text-align: center; color: #6b7280; background: #f9fafb; border-radius: 8px; font-size: 0.9rem;">
-            <i class="fa-solid fa-file-invoice" style="display: block; font-size: 1.5rem; margin-bottom: 8px; opacity: 0.5;"></i>
-            Nenhuma cobrança específica cadastrada.
+          <div style="padding: 16px; text-align: left; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px;">
+            <span style="font-weight: 600;"><i class="fa-solid fa-triangle-exclamation" style="margin-right: 8px;"></i> Cliente marcado como inadimplente, mas nenhuma conta foi registrada.</span>
+            <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.85rem; min-width: max-content; border-radius: 9999px;" onclick="autoSelectInadimplente('${periodId}', '${record.id}')">
+              Preencher Conta Agora
+            </button>
           </div>
         `;
       } else {
@@ -2707,15 +3081,16 @@ function updateInadimplenciaUI() {
           if (displayDate && displayDate.includes('-')) {
             displayDate = displayDate.split('-').reverse().join('/');
           }
-           return `
+          
+          return `
             <tr>
-              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${displayDate || '-'}</td>
-              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">R$ ${conta.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
-                <button class="btn-icon" onclick="editContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Editar" style="color: var(--orange); margin-right: 8px;">
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; width: 40%; font-size: 1rem; color: #475569;">${displayDate || '-'}</td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; width: 40%; font-weight: 600; color: #1e293b; font-size: 1.1rem;">R$ ${conta.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9; text-align: right; width: 20%;">
+                <button class="btn-icon" onclick="editContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Editar" style="color: var(--orange); margin-right: 16px; font-size: 1.1rem;">
                   <i class="fa-solid fa-pencil"></i>
                 </button>
-                <button class="btn-icon text-red" onclick="deleteContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Excluir">
+                <button class="btn-icon text-red" onclick="deleteContaAtrasada('${periodId}', '${record.id}', '${conta.id}')" title="Excluir" style="font-size: 1.1rem;">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               </td>
@@ -2724,77 +3099,262 @@ function updateInadimplenciaUI() {
         }).join('');
 
         bodyContent = `
-          <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
-            <thead>
-              <tr>
-                <th style="padding-bottom: 8px; text-align: left; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Data Emissão</th>
-                <th style="padding-bottom: 8px; text-align: left; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Valor</th>
-                <th style="padding-bottom: 8px; text-align: right; color: #6b7280; font-weight: 600; font-size: 0.85rem;">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
+          <div style="margin-top: 20px; width: 100%;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 2px solid #f1f5f9;">
+                  <th style="padding-bottom: 10px; text-align: left; color: #94a3b8; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Data de Emissão</th>
+                  <th style="padding-bottom: 10px; text-align: left; color: #94a3b8; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Valor da Conta</th>
+                  <th style="padding-bottom: 10px; text-align: right; color: #94a3b8; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
         `;
       }
 
-      card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
-          <h4 style="margin: 0; color: #1f2937; font-size: 1.1rem;">${record.clientName}</h4>
-          <div style="text-align: right;">
-            <span style="font-size: 0.8rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Total Devido</span>
-            <div style="color: #ef4444; font-weight: 700; font-size: 1.25rem;">R$ ${totalDevido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      row.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div>
+            <h4 style="margin: 0; color: #0f172a; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em;">${record.clientName}</h4>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <span class="badge badge-error" style="background: #fee2e2; color: #ef4444; border: none; font-weight: 700;">INADIMPLENTE</span>
+                <span style="font-size: 0.85rem; color: #64748b; font-weight: 500;">ID: ${record.id}</span>
+            </div>
+          </div>
+          <div style="text-align: right; display: flex; align-items: center; gap: 24px;">
+            <button class="btn" onclick="quitarInadimplencia('${periodId}', '${record.id}')" style="background: white; border: 2px solid #10b981; color: #10b981; padding: 10px 20px; font-size: 0.9rem; font-weight: 700; border-radius: 9999px; transition: all 0.2s; display: flex; align-items: center; gap: 8px; cursor: pointer;" onmouseover="this.style.background='#10b981'; this.style.color='white'" onmouseout="this.style.background='white'; this.style.color='#10b981'">
+              <i class="fa-solid fa-check-double"></i> Dar Baixa Total
+            </button>
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+              <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em;">Total Devido</span>
+              <div style="color: #ef4444; font-weight: 900; font-size: 1.8rem; line-height: 1;">R$ ${totalDevido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
           </div>
         </div>
         ${bodyContent}
       `;
+      grid.appendChild(row);
+    });
+  }
+}
+
+// --- "Dar Baixa Total": Quitar Inadimplência ---
+// Alias global: window.darBaixaTotal é o mesmo que quitarInadimplencia
+window.darBaixaTotal = function(periodId, recordId) {
+  window.quitarInadimplencia(periodId, recordId);
+};
+
+window.quitarInadimplencia = function(periodId, recordId) {
+  if (!confirm('Deseja realmente dar BAIXA TOTAL neste cliente?\n\nEle será movido de volta para \'Ativos\' e todo o histórico de dívidas será removido.')) return;
+
+  // Mutação explícita do estado (Vanilla JS)
+  var newPeriods = state.periods.map(function(period) {
+    if (period.id !== periodId) return period;
+    var newRecords = period.records.map(function(record) {
+      if (record.id !== recordId) return record;
+      // Cria novo objeto sem spread (Vanilla puro)
+      return {
+        id: record.id,
+        clientName: record.clientName,
+        dateInclusion: record.dateInclusion,
+        avgKw: record.avgKw,
+        status: 'Ativos',
+        tipoCliente: record.tipoCliente,
+        saldo: record.saldo,
+        dateSaida: record.dateSaida || '',
+        inadimplente: false,
+        contasAtrasadas: []
+      };
+    });
+    return {
+      id: period.id,
+      name: period.name,
+      month: period.month,
+      year: period.year,
+      records: newRecords
+    };
+  });
+
+  // setPeriods força re-render do Dashboard e Inadimplência
+  window.setPeriods(newPeriods);
+
+  // Persistência assíncrona (se Google Sheets configurado)
+  if (!GOOGLE_APPS_SCRIPT_URL.includes('COLE_SUA_URL')) {
+    postToGoogleSheets({ action: 'edit_client', id: recordId, status: 'Ativos', inadimplente: false, contasAtrasadas: [] })
+      .catch(function(err) { console.error('Erro ao sincronizar quitação:', err); });
+  }
+};
+
+window.deleteContaAtrasada = function(periodId, recordId, contaId) {
+  if (!confirm('Deseja realmente excluir esta conta atrasada?')) return;
+
+  var newPeriods = state.periods.map(function(period) {
+    if (period.id !== periodId) return period;
+    var newRecords = period.records.map(function(record) {
+      if (record.id !== recordId) return record;
+      var filteredContas = (record.contasAtrasadas || []).filter(function(c) { return c.id !== contaId; });
+      return {
+        id: record.id,
+        clientName: record.clientName,
+        dateInclusion: record.dateInclusion,
+        avgKw: record.avgKw,
+        status: record.status,
+        tipoCliente: record.tipoCliente,
+        saldo: record.saldo,
+        dateSaida: record.dateSaida || '',
+        inadimplente: record.inadimplente,
+        contasAtrasadas: filteredContas
+      };
+    });
+    return { id: period.id, name: period.name, month: period.month, year: period.year, records: newRecords };
+  });
+
+  window.setPeriods(newPeriods);
+
+  if (!GOOGLE_APPS_SCRIPT_URL.includes('COLE_SUA_URL')) {
+    postToGoogleSheets({ action: 'delete_conta_atrasada', periodId: periodId, recordId: recordId, contaId: contaId })
+      .catch(function(err) { console.error('Erro ao excluir conta:', err); });
+  }
+};
+
+window.editContaAtrasada = function(periodId, recordId, contaId) {
+  var period = state.periods.find(function(p) { return p.id === periodId; });
+  if (!period) return;
+  var record = period.records.find(function(r) { return r.id === recordId; });
+  if (!record) return;
+  var conta = (record.contasAtrasadas || []).find(function(c) { return c.id === contaId; });
+  if (!conta) return;
+
+  var newData = prompt('Data de Emissão (AAAA-MM-DD):', conta.dataEmissao);
+  if (newData === null) return;
+  var newValStr = prompt('Valor (apenas números):', conta.valor);
+  if (newValStr === null) return;
+  var newVal = parseFloat(newValStr.toString().replace(',', '.'));
+
+  if (isNaN(newVal)) {
+    alert('Valor numérico inválido!');
+    return;
+  }
+
+  var newPeriods = state.periods.map(function(p) {
+    if (p.id !== periodId) return p;
+    var newRecords = p.records.map(function(r) {
+      if (r.id !== recordId) return r;
+      var newContas = (r.contasAtrasadas || []).map(function(c) {
+        if (c.id !== contaId) return c;
+        return { id: c.id, dataEmissao: newData, valor: newVal };
+      });
+      return {
+        id: r.id,
+        clientName: r.clientName,
+        dateInclusion: r.dateInclusion,
+        avgKw: r.avgKw,
+        status: r.status,
+        tipoCliente: r.tipoCliente,
+        saldo: r.saldo,
+        dateSaida: r.dateSaida || '',
+        inadimplente: r.inadimplente,
+        contasAtrasadas: newContas
+      };
+    });
+    return { id: p.id, name: p.name, month: p.month, year: p.year, records: newRecords };
+  });
+
+  window.setPeriods(newPeriods);
+
+  if (!GOOGLE_APPS_SCRIPT_URL.includes('COLE_SUA_URL')) {
+    postToGoogleSheets({ action: 'edit_conta_atrasada', periodId: periodId, recordId: recordId, contaId: contaId, dataEmissao: newData, valor: newVal })
+      .catch(function(err) { console.error('Erro ao editar conta:', err); });
+  }
+};
+
+// --- Alerta de Rateio Module Logic ---
+function updateAlertaRateioUI() {
+  const grid = document.getElementById('alerta-rateio-grid');
+  const emptyState = document.getElementById('alerta-rateio-empty');
+  const searchInput = document.getElementById('search-alerta-rateio');
+
+  if (!grid || !emptyState) return;
+
+  const searchTerm = searchInput ? normalizeString(searchInput.value) : '';
+
+  // 1. Coletar e Filtrar (Regra de 3x e Busca)
+  const alerts = [];
+  (state.periods || []).forEach(p => {
+    (p.records || []).forEach(r => {
+      const avg = r.avgKw || 0;
+      const saldo = r.saldo || 0;
+      
+      if (avg > 0) {
+        const multiplier = saldo / avg;
+        if (multiplier >= 3) {
+          const matchesSearch = searchTerm === '' || normalizeString(r.clientName).includes(searchTerm);
+          if (matchesSearch) {
+            alerts.push({
+              ...r,
+              multiplier,
+              periodName: p.name
+            });
+          }
+        }
+      }
+    });
+  });
+
+  // 2. Ordenar por criticidade (maior multiplicador primeiro)
+  alerts.sort((a, b) => b.multiplier - a.multiplier);
+
+  // 3. Renderizar
+  grid.innerHTML = '';
+  
+  if (alerts.length === 0) {
+    emptyState.style.display = 'block';
+    grid.style.display = 'none';
+  } else {
+    emptyState.style.display = 'none';
+    grid.style.display = 'flex';
+
+    alerts.forEach(alerta => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      `;
+      
+      const multiplierText = alerta.multiplier.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      
+      card.innerHTML = `
+        <div style="flex: 1;">
+          <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b;">${alerta.clientName}</h3>
+          <p style="margin: 4px 0 0; font-size: 0.875rem; color: #64748b; font-weight: 500;">Período: ${alerta.periodName} • ID: ${alerta.id}</p>
+        </div>
+        
+        <div style="flex: 1; text-align: center;">
+          <span style="background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; padding: 8px 16px; border-radius: 9999px; font-weight: 700; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            ${multiplierText} vezes a média
+          </span>
+        </div>
+        
+        <div style="flex: 1; text-align: right; color: #475569; font-size: 0.95rem;">
+          <div style="font-weight: 600;">Média: <span style="color: #1e293b;">${alerta.avgKw.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} kW</span></div>
+          <div style="font-weight: 600; margin-top: 4px;">Saldo: <span style="color: #1e293b;">${alerta.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} kW</span></div>
+        </div>
+      `;
+      
       grid.appendChild(card);
     });
   }
 }
 
-window.deleteContaAtrasada = async function(periodId, recordId, contaId) {
-  if (confirm("Deseja realmente excluir esta conta atrasada?")) {
-    const tempState = [...state.periods];
-    const pIdx = tempState.findIndex(p => p.id === periodId);
-    if (pIdx > -1) {
-      const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
-      if (rIdx > -1) {
-        tempState[pIdx].records[rIdx].contasAtrasadas = tempState[pIdx].records[rIdx].contasAtrasadas.filter(c => c.id !== contaId);
-        state.periods = tempState;
-        if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-          await postToGoogleSheets({ action: 'delete_conta_atrasada', periodId, recordId, contaId });
-        }
-      }
-    }
-  }
-};
-
-window.editContaAtrasada = async function(periodId, recordId, contaId) {
-  const tempState = [...state.periods];
-  const pIdx = tempState.findIndex(p => p.id === periodId);
-  if (pIdx > -1) {
-    const rIdx = tempState[pIdx].records.findIndex(r => r.id === recordId);
-    if (rIdx > -1) {
-       const conta = tempState[pIdx].records[rIdx].contasAtrasadas.find(c => c.id === contaId);
-       if (conta) {
-          const newData = prompt("Data de Emissão (AAAA-MM-DD ou DD/MM/AAAA):", conta.dataEmissao);
-          if (newData === null) return;
-          const newValStr = prompt("Valor (apenas números e ponto/vírgula):", conta.valor);
-          if (newValStr === null) return;
-          const newVal = parseFloat(newValStr.toString().replace(',', '.'));
-          if (!isNaN(newVal)) {
-            conta.dataEmissao = newData;
-            conta.valor = newVal;
-            state.periods = tempState;
-            if (!GOOGLE_APPS_SCRIPT_URL.includes("COLE_SUA_URL")) {
-               await postToGoogleSheets({ action: 'edit_conta_atrasada', periodId, recordId, contaId, dataEmissao: newData, valor: newVal });
-            }
-          } else {
-            alert("Valor numérico inválido!");
-          }
-       }
-    }
-  }
-};

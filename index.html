@@ -22,6 +22,8 @@
 
 <body>
 
+
+
   <div class="app-container">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -60,6 +62,10 @@
           <i class="fa-solid fa-file-invoice-dollar"></i>
           Inadimplência
         </button>
+        <button class="nav-item" data-target="alerta-rateio-view">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          Alerta de Rateio
+        </button>
       </nav>
 
       <div class="sidebar-administration">
@@ -68,7 +74,7 @@
         <nav class="sidebar-nav-bottom">
           <button class="nav-item" data-target="entry-view">
             <i class="fa-solid fa-database"></i>
-            Entrada de Dados
+            Entrada e Edição de Dados
           </button>
           <button class="nav-item" data-target="lote-view">
             <i class="fa-solid fa-table-list"></i>
@@ -78,12 +84,12 @@
       </div>
       <div class="sidebar-footer">
         <div class="user-profile">
-          <div class="user-avatar">
-            <i class="fa-solid fa-user"></i>
+          <div class="user-avatar text-orange bg-orange-light">
+            <i class="fa-solid fa-user-gear"></i>
           </div>
           <div class="user-info">
-            <span class="user-name">Painel Administrativo</span>
-            <span class="user-role">Acesso Local</span>
+            <span class="user-name">Acesso Local</span>
+            <span class="user-role">Administrador</span>
           </div>
         </div>
       </div>
@@ -99,8 +105,6 @@
             <h1>Coenergy KPI's</h1>
             <p class="subtitle">Visão analítica de consumo e status operacional dos clientes</p>
           </div>
-        </header>
-
         </header>
 
         <!-- Main KPI Cards (3x2 Grid) -->
@@ -242,8 +246,8 @@
       <section id="entry-view" class="view-section">
         <header class="section-header">
           <div>
-            <h1>Gerenciamento de Dados</h1>
-            <p class="subtitle">Cadastre e atualize informações dos clientes Coenergy</p>
+            <h1>Entrada e Edição de Dados</h1>
+            <p class="subtitle">Cadastre e edite informações dos clientes Coenergy</p>
           </div>
         </header>
 
@@ -379,6 +383,30 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Alerta de Rateio View -->
+      <section id="alerta-rateio-view" class="view-section">
+        <header class="section-header">
+          <div>
+            <h1 class="section-title">Alerta de Rateio: Gestão de Créditos Acumulados</h1>
+            <p class="section-description">Clientes com saldo acumulado superior a 3x o consumo médio mensal.</p>
+          </div>
+        </header>
+
+        <div class="filters-container" style="margin-bottom: 24px;">
+          <div class="search-box" style="flex: 1; position: relative;">
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+            <input type="text" id="search-alerta-rateio" placeholder="Buscar por nome no alerta..." style="width: 100%; padding: 14px 14px 14px 48px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1rem; transition: all 0.2s; outline: none;">
+          </div>
+        </div>
+
+        <div id="alerta-rateio-grid" style="display: flex; flex-direction: column; gap: 16px;"></div>
+        
+        <div id="alerta-rateio-empty" class="empty-state" style="display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 16px; border: 2px dashed #e2e8f0;">
+          <i class="fa-solid fa-circle-check" style="font-size: 3rem; color: #10b981; margin-bottom: 16px;"></i>
+          <p style="color: #64748b; font-size: 1.1rem; font-weight: 500;">Nenhum alerta de rateio identificado. Todos os rateios parecem eficientes.</p>
         </div>
       </section>
 
@@ -544,6 +572,7 @@
                 <option value="Em espera">Em espera</option>
                 <option value="Saíram">Saíram</option>
                 <option value="Inadimplentes">Inadimplentes</option>
+                <option value="Saldo">Saldo Acumulado</option>
               </select>
             </div>
             <div class="form-group" style="flex: 0 0 auto; display: flex; align-items: flex-end;">
@@ -566,6 +595,7 @@
                 <th style="text-align: center;">Data de Inclusão</th>
                 <th style="text-align: center;">Status</th>
                 <th style="text-align: center;">SALDO</th>
+                <th style="text-align: center;">Ações</th>
               </tr>
             </thead>
             <tbody id="organizacao-tbody">
@@ -670,7 +700,6 @@
             <p>Nenhum lançamento de crédito encontrado.</p>
           </div>
         </div>
-        </div>
       </section>
 
       <!-- Inadimplencia View -->
@@ -704,12 +733,21 @@
           </form>
         </div>
 
-        <!-- Cards de Inadimplência -->
-        <div id="inadimplencia-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
-          <!-- Dynamically generated cards -->
+        <!-- Barra de Busca -->
+        <div class="search-container shadow" style="margin-bottom: 24px; width: 100%;">
+          <div style="position: relative; width: 100%;">
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+            <input type="text" id="inadSearch" placeholder="Buscar cliente inadimplente por nome..." style="width: 100%; padding: 14px 14px 14px 48px; border: 1px solid var(--border-color); border-radius: var(--radius-lg); font-size: 1rem; outline: none; transition: var(--transition); background: white;">
+          </div>
         </div>
-        <div id="no-inadimplencia-records" class="empty-state large" style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center;">
-          <div style="background: #ecfdf5; color: #10b981; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 20px;">
+
+        <!-- Lista de Inadimplência (Full Width) -->
+        <div id="inadimplencia-cards-grid" style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+          <!-- Dynamically generated rows -->
+        </div>
+
+        <div id="no-inadimplencia-records" class="empty-state large" style="display: none; flex-direction: column; align-items: center; padding: 60px; text-align: center; background: white; border-radius: 12px; margin-top: 20px;">
+          <div style="background: #f0fdf4; color: #10b981; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 20px;">
             <i class="fa-solid fa-circle-check"></i>
           </div>
           <h3 style="color: #065f46; margin-bottom: 8px;">Nenhum cliente inadimplente</h3>
@@ -754,14 +792,14 @@
     </div>
     <!-- Modal for Clients List -->
     <div id="clients-modal" class="modal">
-      <div class="modal-content white-panel shadow" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-content modal-wide white-panel shadow" style="max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
-          <h2 id="clients-modal-title">Lista de Clientes</h2>
+          <h2 id="clients-modal-title" style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">Lista de Clientes</h2>
           <button type="button" class="close-modal" id="close-clients-modal-btn"><i
               class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="table-container">
-          <table class="data-table">
+        <div class="table-container" style="overflow-x: auto; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch;">
+          <table class="data-table" style="min-width: 680px;">
             <thead>
               <tr id="clients-modal-thead">
                 <th>Nome do Cliente</th>
